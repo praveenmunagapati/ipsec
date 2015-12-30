@@ -32,17 +32,22 @@
 static bool is_continue;
 
 bool ginit(int argc, char** argv) {
-	if(!ipsec_init()) {
-		return -1;
+	if(!ipsec_ginit()) {
+		return false;
 	}
-
 	cmd_init();
 
 	return true;
 }
 
-void init(int argc, char** argv) {
+bool init(int argc, char** argv) {
+	if(!ipsec_init()) {
+		return false;
+	}
+
 	is_continue  = true;
+
+	return true;
 }
 
 void destroy() {

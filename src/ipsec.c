@@ -4,6 +4,9 @@
 #include <net/ip.h>
 #include <net/tcp.h>
 #include <net/checksum.h>
+#include <thread.h>
+#include <timer.h>
+#include <shared.h>
 #include <util/event.h>
 
 #include "ipsec.h"
@@ -17,21 +20,51 @@
 
 #define DEBUG	0
 
-bool ipsec_init() {
+Map* global_map;
+
+bool ipsec_ginit() {
 	printf("PacketNgin IPSec\n\n");
 	printf("Initialize SAD...\n");
-	if(!sad_init()) {
-		printf("Initializing SAD is fail!!!\n");
-		return false;
+
+	int id = thread_id();
+	if(id == 0) {
+		extern void* __gmalloc_pool;
+		Map* map = map_create(8, NULL, NULL, __gmalloc_pool);
+		if(!map) {
+			return false;
+		}
+
+		shared_set(map);
+
+		if(!sad_init()) {
+			printf("Initializing SAD is fail!!!\n");
+			return false;
+		}
+		printf("SAD initialized\n\n");
+		printf("Initialize SPD...\n");
+		if(!spd_init()) {
+			printf("Initializing SPD is fail!!!\n");
+			return false;
+		}
+		printf("SPD initialized\n\n");
+
+		if(!socket_ginit()) {
+			printf("Initializing Socket is fail!!!\n");
+			return false;
+		}
+		printf("Socket initialized\n\n");
+
+		printf("PacketNgin IPSec Start\n");
 	}
-	printf("SAD initialized\n\n");
-	printf("Initialize SPD...\n");
-	if(!spd_init()) {
-		printf("Initializing SPD is fail!!!\n");
-		return false;
-	}
-	printf("SPD initialized\n\n");
-	printf("PacketNgin IPSec Start\n");
+
+	return true;
+}
+
+bool ipsec_init() {
+	global_map = shared_get();
+
+	time_init();
+	event_init();
 
 	return true;
 }
@@ -353,7 +386,7 @@ static bool outbound_process(Packet* packet) {
 	sad_rlock(ni);
 	if(ip->protocol == IP_PROTOCOL_TCP) { //tcp use socket pointer 
 		TCP* tcp = (TCP*)ip->body;
-		socket = socket_get(ni, endian32(ip->source), endian16(tcp->source));
+		socket = socket_get(ni, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination));
 		if(socket) {
 			/*This Packet Is TCP Packet*/
 			sp = socket->sp;
@@ -390,7 +423,7 @@ tcp_packet:
 		if((ip->protocol == IP_PROTOCOL_TCP && !socket)) {
 			TCP* tcp = (TCP*)ip->body;
 			socket = socket_create(ni, sp, NULL);
-			socket_add(ni, endian32(ip->source), endian16(tcp->source), socket);
+			socket_add(ni, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination), socket);
 		}
 		
 		//set dmac
@@ -441,7 +474,7 @@ tcp_packet:
 	if(ip->protocol == IP_PROTOCOL_TCP) {
 		TCP* tcp = (TCP*)ip->body;
 		Socket* socket = socket_create(ni, sp, sa);
-		socket_add(ni, endian32(ip->source), endian16(tcp->source), socket);
+		socket_add(ni, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination), socket);
 	}
 
 	ListIterator iter;

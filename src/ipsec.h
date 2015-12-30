@@ -12,6 +12,7 @@
 #define IPSEC_MODE_TUNNEL 		0x02
 
 bool ipsec_process(Packet* packet);
+bool ipsec_ginit();
 bool ipsec_init();
 
 #endif /* __IPSEC_H__ */
