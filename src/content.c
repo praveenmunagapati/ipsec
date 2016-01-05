@@ -121,5 +121,5 @@ Content* content_alloc(NetworkInterface* ni, uint64_t* attrs) {
 }
 
 void content_free(Content* content) {
-	__free(content->ni, content);
+	__free(content, content->ni->pool);
 }

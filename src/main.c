@@ -829,7 +829,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 			uint32_t dest_ip = 0;
 			uint32_t dest_mask = 0;
 			uint16_t dest_port = 0;
-			uint8_t protocol = 0;
+			uint8_t ipsec_protocol = 0;
 			uint32_t spi = 0;
 
 			for(; i < argc; i++) {
@@ -841,14 +841,10 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 					}
 				} else if(!strcmp(argv[i], "-p")) {
 					i++;
-					if(!strcmp(argv[i], "tcp")) {
-						protocol = IP_PROTOCOL_TCP;
-					} else if(!strcmp(argv[i], "udp")) {
-						protocol = IP_PROTOCOL_UDP;
-					} else if(!strcmp(argv[i], "icmp")) {
-						protocol = IP_PROTOCOL_ICMP;
-					} else if(!strcmp(argv[i], "any")){
-						protocol = IP_PROTOCOL_ANY;
+					if(!strcmp(argv[i], "esp")) {
+						ipsec_protocol = IP_PROTOCOL_ESP;
+					} else if(!strcmp(argv[i], "ah")) {
+						ipsec_protocol = IP_PROTOCOL_AH;
 					} else 
 						return i;
 				} else if(!strcmp(argv[i], "-spi")) {
@@ -866,7 +862,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 
 			bool result;
 			sad_wlock(ni);
-			result = sad_remove_sa(ni, spi, dest_ip, protocol);
+			result = sad_remove_sa(ni, spi, dest_ip, ipsec_protocol);
 			sad_un_wlock(ni);
 
 			if(result)
@@ -1141,7 +1137,7 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 		i++;
 
 		uint8_t direction = 0;
-		uint16_t index = 0;
+		uint8_t index = 0;
 
 		if(!strcmp(argv[i], "-direction")) {
 			i++;
@@ -1160,6 +1156,9 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 				return i;
 			}
 			index = parse_uint8(argv[i]);
+		} else {
+			printf("parameter is wrong\n");
+			return i;
 		}
 
 		bool result = false;

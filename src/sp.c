@@ -83,13 +83,13 @@ SP* sp_alloc(NetworkInterface* ni, uint64_t* attrs) {
 }
 
 bool sp_free(SP* sp) {
-	if(sp->sa_list)
-		list_destroy(sp->sa_list);
+	list_destroy(sp->sa_list);
 
 	ListIterator iter;
 	list_iterator_init(&iter, sp->contents);
 	while(list_iterator_has_next(&iter)) {
-		Content* content = list_iterator_remove(&iter);
+		Content* content = list_iterator_next(&iter);
+		list_iterator_remove(&iter);
 		content_free(content);
 	}
 

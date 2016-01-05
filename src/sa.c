@@ -308,7 +308,7 @@ bool sa_free(SA* sa) {
 		}
 	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
 		if(((SA_AH*)sa)->auth_key) {
-			__free(((SA_ESP*)sa)->auth_key, sa->ni->pool);
+			__free(((SA_AH*)sa)->auth_key, sa->ni->pool);
 		}
 	}
 	__free(sa->window, sa->ni->pool);

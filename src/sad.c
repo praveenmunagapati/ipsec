@@ -197,19 +197,19 @@ protocol_map_create_fail:
 	return false;
 }
 
-bool sad_remove_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t protocol) {
+bool sad_remove_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t ipsec_protocol) {
 	SAD* sad = ni_config_get(ni, IPSEC_SAD);
 
-	uint64_t key = ((uint64_t)protocol << 32) | (uint64_t)spi; /* Protocol(8) + SPI(32)*/
+	uint64_t key = ((uint64_t)ipsec_protocol << 32) | (uint64_t)spi; /* Protocol(8) + SPI(32)*/
 
 	List* dest_list = map_get(sad->database, (void*)(uint64_t)key);
 	if(!dest_list) { 
-		//printf("Can'nt found SA\n");
+		printf("Can'nt found SA List\n");
 
 		return false;
 	}
 
-	bool compare(void* data, void* context) {
+	bool compare(void* context, void* data) {
 		uint32_t dest_addr = (uint32_t)(uint64_t)context;
 		SA* sa = data;
 

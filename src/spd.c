@@ -208,12 +208,15 @@ bool spd_remove_sp(NetworkInterface* ni, uint8_t direction, int index) {
 		case DIRECTION_IN:
 			database = spd->in_database;
 			break;
+		default:
+			return false;
 	}
 
 	SP* sp = list_remove(database, index);
-	sp_free(sp);
-
-	return sp;
+	if(!sp)
+		return false;
+	
+	return 	sp_free(sp);
 }
 
 void spd_delete_all(NetworkInterface* ni, uint8_t direction) {
@@ -231,7 +234,8 @@ void spd_delete_all(NetworkInterface* ni, uint8_t direction) {
 	ListIterator iter;
 	list_iterator_init(&iter, database);
 	while((list_iterator_has_next(&iter))) {
-		SP* sp = list_iterator_remove(&iter);
+		SP* sp = list_iterator_next(&iter);
+		list_iterator_remove(&iter);
 		sp_free(sp);
 	}
 }
