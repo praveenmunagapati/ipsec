@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <malloc.h>
+#include <thread.h>
 #define DONT_MAKE_WRAPPER
 #include <_malloc.h>
 #undef DONT_MAKE_WRAPPER
@@ -19,7 +20,11 @@
 
 // KEY : Packet's dest_ip, ipsec_protocol, spi   
 
-bool sad_init() {
+bool sad_ginit() {
+	int id = thread_id();
+	if(id != 0)
+		return false;
+
 	int count = ni_count();
 
 	for(int i = 0; i < count; i++) {
@@ -36,18 +41,10 @@ bool sad_init() {
 
 			goto fail;
 		}
-		sad->rwlock = __malloc(sizeof(RWLock), ni->pool);
-		if(!sad->rwlock) {
-			printf("Can't create SAD RWLock\n");
-			map_destroy(sad->database);
-			__free(sad, ni->pool);
-			goto fail;
-		}
-		rwlock_init(sad->rwlock);
+		rwlock_init(&sad->rwlock);
 
 		if(!ni_config_put(ni, IPSEC_SAD, sad)) {
 			printf("Can't add SAD\n");
-			__free(sad->rwlock, ni->pool);
 			map_destroy(sad->database);
 			__free(sad, ni->pool);
 			goto fail;
@@ -57,6 +54,26 @@ bool sad_init() {
 	return true;
 
 fail:
+	for(int i = 0; i < count; i++) {
+		NetworkInterface* ni = ni_get(i);
+		SAD* sad = ni_config_get(ni, IPSEC_SAD);
+		if(!sad) {
+			continue;
+		}
+		if(sad->database)
+			map_destroy(sad->database);
+		ni_config_remove(ni, IPSEC_SAD);
+	}
+
+	return false;
+}
+
+void sad_gdestroy() {
+	int id = thread_id();
+	if(id != 0)
+		return;
+
+	int count = ni_count();
 
 	for(int i = 0; i < count; i++) {
 		NetworkInterface* ni = ni_get(i);
@@ -64,12 +81,19 @@ fail:
 		if(!sad) {
 			continue;
 		}
-		map_destroy(sad->database);
-		__free(sad->rwlock, ni->pool);
+		if(sad->database) {
+			MapIterator iter;
+			map_iterator_init(&iter, sad->database);
+			while(map_iterator_has_next(&iter)) {
+				MapEntry* entry = map_iterator_next(&iter);
+				SA* sa = entry->data;
+				sa_free(sa);
+			}
+			map_destroy(sad->database);
+		}
+
 		ni_config_remove(ni, IPSEC_SAD);
 	}
-
-	return false;
 }
 
 SAD* sad_get(NetworkInterface* ni) {
@@ -214,28 +238,24 @@ bool sad_remove_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t
 /* SAD Read & Write Lock */
 inline void sad_rlock(NetworkInterface* ni) {
 	SAD* sad = ni_config_get(ni, IPSEC_SAD);
-	RWLock* rwlock = sad->rwlock;
 
-	rwlock_read_lock(rwlock);
+	rwlock_read_lock(&sad->rwlock);
 }
 
 inline void sad_un_rlock(NetworkInterface* ni) {
 	SAD* sad = ni_config_get(ni, IPSEC_SAD);
-	RWLock* rwlock = sad->rwlock;
 
-	rwlock_read_unlock(rwlock);
+	rwlock_read_unlock(&sad->rwlock);
 }
 
 inline void sad_wlock(NetworkInterface* ni) {
 	SAD* sad = ni_config_get(ni, IPSEC_SAD);
-	RWLock* rwlock = sad->rwlock;
 
-	rwlock_write_lock(rwlock);
+	rwlock_write_lock(&sad->rwlock);
 }
 
 inline void sad_un_wlock(NetworkInterface* ni) {
 	SAD* sad = ni_config_get(ni, IPSEC_SAD);
-	RWLock* rwlock = sad->rwlock;
 
-	rwlock_write_unlock(rwlock);
+	rwlock_write_unlock(&sad->rwlock);
 }

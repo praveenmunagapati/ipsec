@@ -14,5 +14,7 @@
 bool ipsec_process(Packet* packet);
 bool ipsec_ginit();
 bool ipsec_init();
+void ipsec_gdestroy();
+void ipsec_destroy();
 
 #endif /* __IPSEC_H__ */

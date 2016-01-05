@@ -10,10 +10,11 @@
 
 typedef struct _SAD {
 	Map* database;
-	RWLock* rwlock;
+	RWLock rwlock;
 } SAD;
 
-bool sad_init();
+bool sad_ginit();
+void sad_gdestroy();
 SAD* sad_get(NetworkInterface* ni);
 void sad_remove_all(NetworkInterface* ni);
 SA* sad_get_sa(NetworkInterface* ni, uint32_t spi, uint32_t dst_ip, uint8_t protocol);

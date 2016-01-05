@@ -1,5 +1,5 @@
 #include <stdio.h>
-
+#include <thread.h>
 #include <stdint.h>
 #include <malloc.h>
 #define DONT_MAKE_WRAPPER
@@ -15,7 +15,11 @@
 #include "sp.h"
 #include "rwlock.h"
 
-bool spd_init() {
+bool spd_ginit() {
+	int id = thread_id();
+	if(id != 0)
+		return false;
+
 	int count = ni_count();
 
 	for(int i = 0; i < count; i++) {
@@ -32,38 +36,19 @@ bool spd_init() {
 			printf("Can't create SPD Outbound Database\n");
 			goto fail;
 		}
-		spd->out_rwlock = __malloc(sizeof(RWLock), ni->pool);
-		if(!spd->out_rwlock) {
-			list_destroy(spd->out_database);
-			__free(spd, ni->pool);
-			printf("Can't create SPD Outbound RWLock\n");
-			goto fail;
-		}
-		rwlock_init(spd->out_rwlock);
+		rwlock_init(&spd->out_rwlock);
 
 		spd->in_database = list_create(ni->pool);
 		if(!spd->in_database) {
-			__free(spd->out_rwlock, ni->pool);
 			list_destroy(spd->out_database);
 			__free(spd, ni->pool);
 			printf("Can't create SPD Outbound Database\n");
 			goto fail;
 		}
-		spd->in_rwlock = __malloc(sizeof(RWLock), ni->pool);
-		if(!spd->in_rwlock) {
-			list_destroy(spd->in_database);
-			__free(spd->out_rwlock, ni->pool);
-			list_destroy(spd->out_database);
-			__free(spd, ni->pool);
-			printf("Can't create SPD Outbound RWLock\n");
-			goto fail;
-		}
-		rwlock_init(spd->in_rwlock);
+		rwlock_init(&spd->in_rwlock);
 
 		if(!ni_config_put(ni, IPSEC_SPD, spd)) {
-			__free(spd->in_rwlock, ni->pool);
 			list_destroy(spd->in_database);
-			__free(spd->out_rwlock, ni->pool);
 			list_destroy(spd->out_database);
 			__free(spd, ni->pool);
 			printf("Can't add SPD Outbound\n");
@@ -80,15 +65,43 @@ fail:
 		if(!spd)
 			continue;
 
-		list_destroy(spd->out_database);
-		__free(spd->out_rwlock, ni->pool);
-		list_destroy(spd->in_database);
-		__free(spd->in_rwlock, ni->pool);
+		if(spd->out_database)
+			list_destroy(spd->out_database);
+
+		if(spd->in_database)
+			list_destroy(spd->in_database);
 
 		ni_config_remove(ni, IPSEC_SPD);
+
+		__free(spd, ni->pool);
 	}
 
 	return false;
+}
+
+void spd_gdestroy() {
+	int id = thread_id();
+	if(id != 0)
+		return;
+
+	int count = ni_count();
+
+	for(int i = 0; i < count; i++) {
+		NetworkInterface* ni = ni_get(i);
+		SPD* spd = ni_config_get(ni, IPSEC_SPD);
+		if(!spd)
+			continue;
+
+		if(spd->out_database)
+			list_destroy(spd->out_database);
+
+		if(spd->in_database)
+			list_destroy(spd->in_database);
+
+		ni_config_remove(ni, IPSEC_SPD);
+
+		__free(spd, ni->pool);
+	}
 }
 
 SPD* spd_get(NetworkInterface* ni) {
@@ -100,12 +113,10 @@ SP* spd_get_sp_index(NetworkInterface* ni, uint8_t direction, uint16_t index) {
 	SP* sp = NULL;
 	switch(direction) {
 		case DIRECTION_OUT:
-			;
 			sp = list_get(spd->out_database, index);
 
 			break;
 		case DIRECTION_IN:
-			;
 			sp = list_get(spd->in_database, index);
 
 			break;
@@ -228,56 +239,48 @@ void spd_delete_all(NetworkInterface* ni, uint8_t direction) {
 /* SPD Read & Write Lock */
 inline void spd_inbound_rlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->in_rwlock;
 
-	rwlock_read_lock(rwlock);
+	rwlock_read_lock(&spd->in_rwlock);
 }
 
 inline void spd_inbound_un_rlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->in_rwlock;
 
-	rwlock_read_unlock(rwlock);
+	rwlock_read_unlock(&spd->in_rwlock);
 }
 
 inline void spd_inbound_wlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->in_rwlock;
 
-	rwlock_write_lock(rwlock);
+	rwlock_write_lock(&spd->in_rwlock);
 }
 
 inline void spd_inbound_un_wlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->in_rwlock;
 
-	rwlock_write_unlock(rwlock);
+	rwlock_write_unlock(&spd->in_rwlock);
 }
 
 inline void spd_outbound_rlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->out_rwlock;
 
-	rwlock_read_lock(rwlock);
+	rwlock_read_lock(&spd->out_rwlock);
 }
 
 inline void spd_outbound_un_rlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->out_rwlock;
 
-	rwlock_read_unlock(rwlock);
+	rwlock_read_unlock(&spd->out_rwlock);
 }
 
 inline void spd_outbound_wlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->out_rwlock;
 
-	rwlock_write_lock(rwlock);
+	rwlock_write_lock(&spd->out_rwlock);
 }
 
 inline void spd_outbound_un_wlock(NetworkInterface* ni) {
 	SPD* spd = ni_config_get(ni, IPSEC_SPD);
-	RWLock* rwlock = spd->out_rwlock;
 
-	rwlock_write_unlock(rwlock);
+	rwlock_write_unlock(&spd->out_rwlock);
 }

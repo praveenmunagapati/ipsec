@@ -10,12 +10,13 @@
 
 typedef struct _SPD {
 	List* out_database;
-	RWLock* out_rwlock;
+	RWLock out_rwlock;
 	List* in_database;
-	RWLock* in_rwlock;
+	RWLock in_rwlock;
 } SPD;
 
-bool spd_init();
+bool spd_ginit();
+void spd_gdestroy();
 SPD* spd_get(NetworkInterface* ni);
 SP* spd_get_sp(NetworkInterface* ni, uint8_t direction, IP* ip);
 SP* spd_get_sp_index(NetworkInterface* ni, uint8_t direction, uint16_t index);

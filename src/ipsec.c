@@ -24,38 +24,39 @@ Map* global_map;
 
 bool ipsec_ginit() {
 	printf("PacketNgin IPSec\n\n");
-	printf("Initialize SAD...\n");
-
 	int id = thread_id();
-	if(id == 0) {
-		extern void* __gmalloc_pool;
-		Map* map = map_create(8, NULL, NULL, __gmalloc_pool);
-		if(!map) {
-			return false;
-		}
+	if(id != 0)
+		return false;
 
-		shared_set(map);
-
-		if(!sad_init()) {
-			printf("Initializing SAD is fail!!!\n");
-			return false;
-		}
-		printf("SAD initialized\n\n");
-		printf("Initialize SPD...\n");
-		if(!spd_init()) {
-			printf("Initializing SPD is fail!!!\n");
-			return false;
-		}
-		printf("SPD initialized\n\n");
-
-		if(!socket_ginit()) {
-			printf("Initializing Socket is fail!!!\n");
-			return false;
-		}
-		printf("Socket initialized\n\n");
-
-		printf("PacketNgin IPSec Start\n");
+	extern void* __gmalloc_pool;
+	Map* map = map_create(8, NULL, NULL, __gmalloc_pool);
+	if(!map) {
+		return false;
 	}
+
+	shared_set(map);
+
+	printf("Initialize SAD...\n");
+	if(!sad_ginit()) {
+		printf("Initializing SAD is fail!!!\n");
+		return false;
+	}
+	printf("SAD initialized\n\n");
+
+	printf("Initialize SPD...\n");
+	if(!spd_ginit()) {
+		printf("Initializing SPD is fail!!!\n");
+		return false;
+	}
+	printf("SPD initialized\n\n");
+
+	if(!socket_ginit()) {
+		printf("Initializing Sockets is fail!!!\n");
+		return false;
+	}
+	printf("Socket initialized\n\n");
+
+	printf("PacketNgin IPSec Start\n");
 
 	return true;
 }
@@ -67,6 +68,27 @@ bool ipsec_init() {
 	event_init();
 
 	return true;
+}
+
+void ipsec_destroy() {
+	//TODO: Fix event api
+
+	//event_destroy();
+}
+
+void ipsec_gdestroy() {
+	printf("Destroy IPSec...\n");
+	int id = thread_id();
+	if(id != 0)
+		return;
+
+	socket_gdestroy();
+
+	spd_gdestroy();
+
+	sad_gdestroy();
+	
+	map_destroy(global_map);
 }
 
 static bool ipsec_decrypt(Packet* packet, SA* sa) { 
@@ -535,6 +557,8 @@ tcp_packet:
 }
 
 bool ipsec_process(Packet* packet) {
+	event_loop();
+
 	if(arp_process(packet))
 		return true;
 

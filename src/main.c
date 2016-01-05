@@ -51,9 +51,11 @@ bool init(int argc, char** argv) {
 }
 
 void destroy() {
+	ipsec_destroy();
 }
 
 void gdestroy() {
+	ipsec_gdestroy();
 }
 
 static int parse_mask(uint32_t mask) {
