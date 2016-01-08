@@ -43,7 +43,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 		}
 		sa = __malloc(sizeof(SA_ESP), ni->pool);
 		if(!sa) {
-			printf("Can'nt allocate SA\n");
+			printf("Can't allocate SA\n");
 			return NULL;
 		}
 		memset(sa, 0, sizeof(SA_ESP));
@@ -55,7 +55,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 		}
 		sa = __malloc(sizeof(SA_AH), ni->pool);
 		if(!sa) {
-			printf("Can'nt allocate SA\n");
+			printf("Can't allocate SA\n");
 			return NULL;
 		}
 		memset(sa, 0, sizeof(SA_AH));
@@ -128,7 +128,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 
 						DES_key_schedule* ks = __malloc(sizeof(DES_key_schedule), ni->pool);
 						if(!ks) {
-							printf("Can'nt allocate key\n");
+							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
 						if(DES_set_key_checked(&des_key, ks)) {
@@ -150,7 +150,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 
 						DES_key_schedule* ks_3 = __malloc(sizeof(DES_key_schedule) * 3, ni->pool);
 						if(!ks_3) {
-							printf("Can'nt allocate key\n");
+							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
 						if(DES_set_key_checked(&des_key_3[0], &ks_3[0]) || DES_set_key_checked(&des_key_3[1], &ks_3[1]) || DES_set_key_checked(&des_key_3[2], &ks_3[2])) {
@@ -167,7 +167,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 						/*BF*/
 						BF_KEY* bf_key = __malloc(sizeof(BF_KEY), ni->pool);
 						if(!bf_key) {
-							printf("Can'nt allocate key\n");
+							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
 						BF_set_key(bf_key, crypto_key_length, (const unsigned char*)((SA_ESP*)sa)->crypto_key);
@@ -179,7 +179,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 						/*Cast*/
 						CAST_KEY* cast_key = __malloc(sizeof(CAST_KEY), ni->pool);
 						if(!cast_key) {
-							printf("Can'nt allocate key\n");
+							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
 						CAST_set_key(cast_key, crypto_key_length, (const unsigned char*)((SA_ESP*)sa)->crypto_key);
@@ -187,37 +187,57 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 						((SA_ESP*)sa)->decrypt_key = cast_key;
 						break;
 					case CRYPTO_RIJNDAEL_CBC:
+						break;
 					case CRYPTO_AES_CTR:
 						;
 						/*AES*/
 						AES_KEY* encrypt_key = __malloc(sizeof(AES_KEY), ni->pool);
 						if(!encrypt_key) {
-							printf("Can'nt allocate key\n");
+							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
-						AES_KEY* decrypt_key = __malloc(sizeof(AES_KEY), ni->pool);
-						if(!decrypt_key) {
-							printf("Can'nt allocate key\n");
-							__free(encrypt_key, ni->pool);
-							goto fail_key_alloc;
-						}
+//						AES_KEY* decrypt_key = __malloc(sizeof(AES_KEY), ni->pool);
+//						if(!decrypt_key) {
+//							printf("Can't allocate key\n");
+//							__free(encrypt_key, ni->pool);
+//							goto fail_key_alloc;
+//						}
 						/*AES has diffrent key for encrypt and decrypt*/
-						AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length, encrypt_key);
-						AES_set_decrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length, decrypt_key);
+						if(AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, encrypt_key)) {
+							printf("Wrong key\n");
+							__free(encrypt_key, ni->pool);
+							//__free(decrypt_key, ni->pool);
+							goto fail_key_alloc;
+						}
+						//if(AES_set_decrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, decrypt_key)) {
+//						if(AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, decrypt_key)) {
+//							printf("Wrong key\n");
+//							__free(encrypt_key, ni->pool);
+//							__free(decrypt_key, ni->pool);
+//							goto fail_key_alloc;
+//						}
 						((SA_ESP*)sa)->encrypt_key = encrypt_key;
-						((SA_ESP*)sa)->decrypt_key = decrypt_key;
+						//((SA_ESP*)sa)->decrypt_key = decrypt_key;
+						((SA_ESP*)sa)->decrypt_key = encrypt_key;
+						break;
 					case CRYPTO_CAMELLIA_CBC:
 						;
 						/*Camellia*/
 						CAMELLIA_KEY* camellia_key = __malloc(sizeof(CAMELLIA_KEY), ni->pool);
 						if(!camellia_key) {
-							printf("Can'nt allocate key\n");
+							printf("Can't allocate key\n");
 							__free(camellia_key, ni->pool);
 							goto fail_key_alloc;
 						}
-						Camellia_set_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length, camellia_key);
+						printf("crypto_key_length : %d\n", crypto_key_length);
+						if(Camellia_set_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, camellia_key)) {
+							printf("Wrong key\n");
+							__free(camellia_key, ni->pool);
+							goto fail_key_alloc;
+						}
 						((SA_ESP*)sa)->encrypt_key = camellia_key;
 						((SA_ESP*)sa)->decrypt_key = camellia_key;
+						break;
 					case CRYPTO_TWOFISH_CBC:
 						break;
 				}
@@ -258,7 +278,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 				if(attrs[i * 2 + 1]) {
 					sa->window = (Window*)__malloc(sizeof(Window), ni->pool);
 					if(!sa->window) {
-						printf("Can'nt allocate window\n");
+						printf("Can't allocate window\n");
 						goto sa_free;
 					}
 					memset(sa->window, 0x0, sizeof(Window));

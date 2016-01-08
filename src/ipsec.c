@@ -18,7 +18,7 @@
 #include "ike.h"
 #include "mode.h"
 
-#define DEBUG	0
+#define DEBUG	1
 
 Map* global_map;
 
@@ -64,7 +64,6 @@ bool ipsec_ginit() {
 bool ipsec_init() {
 	global_map = shared_get();
 
-	time_init();
 	event_init();
 
 	return true;
@@ -100,6 +99,7 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 
 	int size = endian16(ip->length) - (ip->ihl * 4) - ICV_LEN;
 	uint8_t result[12];
+	
 	if(((SA_ESP*)sa)->auth) {
 		((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(&(ip->body), size, result, sa);
 		if(memcmp(result, ip->body + size, 12) != 0) {
@@ -118,10 +118,10 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 	if(sa->ipsec_mode == IPSEC_MODE_TRANSPORT) {
 		ip->protocol = esp_trailer->next_hdr;
 		ip->ttl--;
-		transport_unset(packet, ESP_HEADER_LEN, padding_len + ESP_TRAILER_LEN);
+		transport_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
 
 	} else if(sa->ipsec_mode == IPSEC_MODE_TUNNEL) {
-		tunnel_unset(packet, ESP_HEADER_LEN, padding_len + ESP_TRAILER_LEN);
+		tunnel_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
 	}
 
 	return true;
@@ -131,15 +131,15 @@ static bool ipsec_encrypt(Packet* packet, Content* content, SA* sa) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 
-	int padding_len = (endian16(ip->length) + 2) % 8;
+	int padding_len = (endian16(ip->length) + 2) % ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len;
 	if(padding_len != 0)
-		padding_len = 8 - padding_len;
+		padding_len = ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len - padding_len;
 
 	if(content->ipsec_mode == IPSEC_MODE_TRANSPORT) {
-		if(!transport_set(packet, ESP_HEADER_LEN, padding_len + ESP_TRAILER_LEN))
+		if(!transport_set(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN))
 			return false;
 	} else if(content->ipsec_mode == IPSEC_MODE_TUNNEL) {
-		if(!tunnel_set(packet, ESP_HEADER_LEN, padding_len + ESP_TRAILER_LEN))
+		if(!tunnel_set(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN))
 			return false;
 	}
 
@@ -325,7 +325,7 @@ static bool inbound_process(Packet* packet) {
 				sa = sad_get_sa(ni, endian32(esp->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
 #if DEBUG
-					printf("Can'nt found SA\n");
+					printf("Can't found SA\n");
 #endif
 					goto error;
 				}
@@ -340,7 +340,7 @@ static bool inbound_process(Packet* packet) {
 				sa = sad_get_sa(ni, endian32(ah->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
 #if DEBUG
-					printf("Can'nt found SA\n");
+					printf("Can't found SA\n");
 #endif
 					goto error;
 				}
@@ -359,7 +359,7 @@ static bool inbound_process(Packet* packet) {
 	SP* sp = spd_get_sp(ni, DIRECTION_IN, ip);
 	if(!sp) {
 #if DEBUG
-		printf("Can'nt found SP\n");
+		printf("Can't found SP\n");
 #endif
 		goto error;
 	}
@@ -369,11 +369,10 @@ static bool inbound_process(Packet* packet) {
 		goto error;
 	}
 
-	
 	ether = (Ether*)(packet->buffer + packet->start);
         ip = (IP*)ether->payload;
 	ether->smac = endian48(sp->out_ni->mac);
-	ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), endian32(ip->source)));
+	ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), 0));
 	ether->type = endian16(ETHER_TYPE_IPv4);
 
 	ni_output(sp->out_ni, packet);
@@ -487,7 +486,7 @@ tcp_packet:
 		spd_outbound_un_rlock(ni);
 		sad_un_rlock(ni);
 #if DEBUG
-		printf("Can'nt found SA\n");
+		printf("Can't found SA\n");
 #endif
 
 		return true;
@@ -509,7 +508,7 @@ tcp_packet:
 			spd_outbound_un_rlock(ni);
 			sad_un_rlock(ni);
 #if DEBUG
-			printf("Can'nt found SA\n");
+			printf("Can't found SA\n");
 #endif
 			return true;
 		}
@@ -521,7 +520,7 @@ tcp_packet:
 					spd_outbound_un_rlock(ni);
 					sad_un_rlock(ni);
 #if DEBUG
-					printf("Can'nt encrypt packet\n");
+					printf("Can't encrypt packet\n");
 #endif
 					return true;
 				}
@@ -533,7 +532,7 @@ tcp_packet:
 					spd_outbound_un_rlock(ni);
 					sad_un_rlock(ni);
 #if DEBUG
-					printf("Can'nt authenticate packet\n");
+					printf("Can't authenticate packet\n");
 #endif
 					return true;
 				}
@@ -557,7 +556,7 @@ tcp_packet:
 }
 
 bool ipsec_process(Packet* packet) {
-	event_loop();
+	//event_loop();
 
 	if(arp_process(packet))
 		return true;
@@ -574,9 +573,6 @@ bool ipsec_process(Packet* packet) {
 		if(inbound_process(packet)) {
 			return true;
 		}
-
-
-		return false;
 	}
 
 	return false;

@@ -9,8 +9,6 @@
 #include <string.h>
 
 #include "window.h"
-//#include "crypto.h"
-//#include "auth.h"
 
 typedef enum {
 	SA_NONE,

@@ -24,11 +24,12 @@
 #define CRYPTO_RIJNDAEL_CBC		0x07
 #define CRYPTO_TWOFISH_CBC		0x08
 #define CRYPTO_AES_CTR			0x09
-#define CRYPTO_CAMELLIA_CBC		0x10
+#define CRYPTO_CAMELLIA_CBC		0x0a
 
 typedef struct _Cryptography{
 	void(*encrypt)(ESP* esp, size_t size, SA_ESP* sa);
 	void(*decrypt)(ESP* esp, size_t size, SA_ESP* sa);
+	uint8_t iv_len;
 } Cryptography;
 
 Cryptography* get_cryptography(int algorithm);

@@ -678,9 +678,26 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 						}
 					} else if(!strcmp(argv[i], "aes_ctr")) {
 						crypto_algorithm = CRYPTO_AES_CTR;
-						crypto_key_length = 16;
 						i++;
-						if(!parse_key(ni, argv[i], &crypto_key, 16)) {
+						if(strncmp("0x", argv[i], 2)) {
+							printf("Wrong key length\n");
+							return i;
+						}
+
+						crypto_key_length = strlen(argv[i]) - 2;
+//						crypto_key_length = crypto_key_length / 2 + !!(crypto_key_length % 2);
+//						if(crypto_key_length > 36) {
+//							printf("Wrong key length\n");
+//							return i;
+//						}
+//						if(crypto_key_length > 28)
+//							crypto_key_length = 36;
+//						else if(crypto_key_length > 20)
+//							crypto_key_length = 28;
+//						else
+//							crypto_key_length = 20;
+
+						if(!parse_key(ni, argv[i], &crypto_key, crypto_key_length)) {
 							printf("Wrong crypto key\n");
 							return i;
 						}
@@ -1644,7 +1661,10 @@ int main(int argc, char** argv) {
 	}
 
 	thread_barrior();
-	init(argc, argv);
+	if(!init(argc, argv)) {
+		printf("Initilaize Fail\n");
+		return -1;
+	}
 	thread_barrior();
 
 	uint32_t count = ni_count();
@@ -1662,9 +1682,9 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		if(id == 0) {
-			char* line = readline();
-			if(line != NULL) {
+		char* line = readline();
+		if(line != NULL) {
+			if(id == 0) {
 				cmd_exec(line, NULL);
 			}
 		}
