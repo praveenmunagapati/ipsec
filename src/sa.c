@@ -225,28 +225,14 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
-//						AES_KEY* decrypt_key = __malloc(sizeof(AES_KEY), ni->pool);
-//						if(!decrypt_key) {
-//							printf("Can't allocate key\n");
-//							__free(encrypt_key, ni->pool);
-//							goto fail_key_alloc;
-//						}
-						/*AES has diffrent key for encrypt and decrypt*/
-						if(AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, encrypt_key)) {
+						if(AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, (crypto_key_length - 4) * 8, encrypt_key)) {
 							printf("Wrong key\n");
 							__free(encrypt_key, ni->pool);
 							//__free(decrypt_key, ni->pool);
 							goto fail_key_alloc;
 						}
-						//if(AES_set_decrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, decrypt_key)) {
-//						if(AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, decrypt_key)) {
-//							printf("Wrong key\n");
-//							__free(encrypt_key, ni->pool);
-//							__free(decrypt_key, ni->pool);
-//							goto fail_key_alloc;
-//						}
+
 						((SA_ESP*)sa)->encrypt_key = encrypt_key;
-						//((SA_ESP*)sa)->decrypt_key = decrypt_key;
 						((SA_ESP*)sa)->decrypt_key = encrypt_key;
 						}
 						break;

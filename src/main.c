@@ -685,17 +685,17 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 						}
 
 						crypto_key_length = strlen(argv[i]) - 2;
-//						crypto_key_length = crypto_key_length / 2 + !!(crypto_key_length % 2);
-//						if(crypto_key_length > 36) {
-//							printf("Wrong key length\n");
-//							return i;
-//						}
-//						if(crypto_key_length > 28)
-//							crypto_key_length = 36;
-//						else if(crypto_key_length > 20)
-//							crypto_key_length = 28;
-//						else
-//							crypto_key_length = 20;
+						crypto_key_length = crypto_key_length / 2 + !!(crypto_key_length % 2);
+						if(crypto_key_length > 36) {
+							printf("Wrong key length\n");
+							return i;
+						}
+						if(crypto_key_length > 28)
+							crypto_key_length = 36;
+						else if(crypto_key_length > 20)
+							crypto_key_length = 28;
+						else
+							crypto_key_length = 20;
 
 						if(!parse_key(ni, argv[i], &crypto_key, crypto_key_length)) {
 							printf("Wrong crypto key\n");

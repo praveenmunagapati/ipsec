@@ -97,10 +97,10 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 	// 2. Seq# Validation
 	ESP* esp = (ESP*)ip->body;
 
-	int size = endian16(ip->length) - (ip->ihl * 4) - ICV_LEN;
-	uint8_t result[12];
+	int size = endian16(ip->length) - (ip->ihl * 4) - ESP_HEADER_LEN;
 	
 	if(((SA_ESP*)sa)->auth) {
+		uint8_t result[12];
 		((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(&(ip->body), size, result, sa);
 		if(memcmp(result, ip->body + size, 12) != 0) {
 #if DEBUG
@@ -108,6 +108,7 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 #endif
 			return false;
 		}
+		size -= ICV_LEN;
 	}
 
 	((Cryptography*)(((SA_ESP*)sa)->crypto))->decrypt(esp, size, (SA_ESP*)sa); 
