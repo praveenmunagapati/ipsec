@@ -19,7 +19,7 @@
 #define AUTH_HMAC_SHA512	0x07
 #define AUTH_HMAC_RIPEMD160	0x08
 #define AUTH_AES_XCBC_MAC	0x09
-#define AUTH_TCP_MD5		0x10
+#define AUTH_TCP_MD5		0x0a
 
 typedef struct _Authentication {
 	void(*authenticate)(void* payload, size_t size, unsigned char* result, SA* sa);

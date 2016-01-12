@@ -723,43 +723,110 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 					if(!strcmp(argv[i], "hmac_md5")) {
 						auth_algorithm = AUTH_HMAC_MD5;
 						i++;
-						auth_key_length = 16;
-						if(!parse_key(ni, argv[i], &auth_key, 16)) {
+						if(strncmp("0x", argv[i], 2)) {
+							printf("Wrong key length\n");
+							return i;
+						}
+
+						auth_key_length = strlen(argv[i]) - 2;
+						auth_key_length = auth_key_length / 2 + !!(auth_key_length % 2);
+
+						if(auth_key_length != 16) {
+							return i;
+						}
+
+						if(!parse_key(ni, argv[i], &auth_key, auth_key_length)) {
 							printf("AH key  wrong\n");
 							return i;
 						}
 					} else if(!strcmp(argv[i], "hmac_sha1")) {
 						auth_algorithm = AUTH_HMAC_SHA1;
-						auth_key_length = 20;
-						if(!parse_key(ni, argv[i], &auth_key, 20)) {
+						i++;
+						if(strncmp("0x", argv[i], 2)) {
+							printf("Wrong key length\n");
+							return i;
+						}
+
+						auth_key_length = strlen(argv[i]) - 2;
+						auth_key_length = auth_key_length / 2 + !!(auth_key_length % 2);
+
+						if(auth_key_length != 20) {
+							return i;
+						}
+
+						if(!parse_key(ni, argv[i], &auth_key, auth_key_length)) {
 							printf("AH key  wrong\n");
 							return i;
 						}
 					} else if(!strcmp(argv[i], "hmac_sha256")) {
 						auth_algorithm = AUTH_HMAC_SHA256;
-						auth_key_length = 32;
-						if(!parse_key(ni, argv[i], &auth_key, 32)) {
+						i++;
+						if(strncmp("0x", argv[i], 2)) {
+							printf("Wrong key length\n");
+							return i;
+						}
+
+						auth_key_length = strlen(argv[i]) - 2;
+						auth_key_length = auth_key_length / 2 + !!(auth_key_length % 2);
+
+						if(auth_key_length != 32) {
+							return i;
+						}
+						if(!parse_key(ni, argv[i], &auth_key, auth_key_length)) {
 							printf("AH key  wrong\n");
 							return i;
 						}
 					} else if(!strcmp(argv[i], "hmac_sha384")) {
 						auth_algorithm = AUTH_HMAC_SHA384;
-						auth_key_length = 48;
-						if(!parse_key(ni, argv[i], &auth_key, 48)) {
+						i++;
+						if(strncmp("0x", argv[i], 2)) {
+							printf("Wrong key length\n");
+							return i;
+						}
+
+						auth_key_length = strlen(argv[i]) - 2;
+						auth_key_length = auth_key_length / 2 + !!(auth_key_length % 2);
+
+						if(auth_key_length != 48) {
+							return i;
+						}
+						if(!parse_key(ni, argv[i], &auth_key, auth_key_length)) {
 							printf("AH key  wrong\n");
 							return i;
 						}
 					} else if(!strcmp(argv[i], "hmac_sha512")) {
 						auth_algorithm = AUTH_HMAC_SHA512;
-						auth_key_length = 64;
-						if(!parse_key(ni, argv[i], &auth_key, 64)) {
+						i++;
+						if(strncmp("0x", argv[i], 2)) {
+							printf("Wrong key length\n");
+							return i;
+						}
+
+						auth_key_length = strlen(argv[i]) - 2;
+						auth_key_length = auth_key_length / 2 + !!(auth_key_length % 2);
+
+						if(auth_key_length != 48) {
+							return i;
+						}
+						if(!parse_key(ni, argv[i], &auth_key, auth_key_length)) {
 							printf("AH key  wrong\n");
 							return i;
 						}
 					} else if(!strcmp(argv[i], "hmac_ripemd160")) {
 						auth_algorithm = AUTH_HMAC_RIPEMD160;
-						auth_key_length = 20;
-						if(!parse_key(ni, argv[i], &auth_key, 20)) {
+						i++;
+						if(strncmp("0x", argv[i], 2)) {
+							printf("Wrong key length\n");
+							return i;
+						}
+
+						auth_key_length = strlen(argv[i]) - 2;
+						auth_key_length = auth_key_length / 2 + !!(auth_key_length % 2);
+
+						if(auth_key_length != 20) {
+							return i;
+						}
+						if(!parse_key(ni, argv[i], &auth_key, auth_key_length)) {
 							printf("AH key  wrong\n");
 							return i;
 						}
