@@ -234,8 +234,10 @@ static void _hmac_ripemd160(void* payload, size_t size, unsigned char* result, S
 
 	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
 		auth_key = ((SA_ESP*)sa)->auth_key;
+		auth_key_length = ((SA_ESP*)sa)->auth_key_length;
 	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
 		auth_key = ((SA_AH*)sa)->auth_key;
+		auth_key_length = ((SA_AH*)sa)->auth_key_length;
 	}
 
 	unsigned char* _result = _HMAC(EVP_ripemd160(), auth_key, auth_key_length, payload, size, NULL, NULL);
