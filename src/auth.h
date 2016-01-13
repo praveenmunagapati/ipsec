@@ -9,6 +9,9 @@
 
 #include "sa.h"
 
+#define AUTH_REQUEST		0X01
+#define AUTH_CHECK		0X02
+
 #define AUTH_NONE		0X00
 #define AUTH_HMAC_MD5		0x01
 #define AUTH_HMAC_SHA1		0x02
@@ -22,7 +25,8 @@
 #define AUTH_TCP_MD5		0x0a
 
 typedef struct _Authentication {
-	void(*authenticate)(void* payload, size_t size, unsigned char* result, SA* sa);
+	bool(*authenticate)(Packet* packet, SA* sa, uint8_t type);
+	uint16_t auth_len;
 } Authentication;
 
 Authentication* get_authentication(int algorithm);

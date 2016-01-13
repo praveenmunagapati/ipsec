@@ -1,3 +1,4 @@
+#include <net/ether.h>
 #include "ah.h"
 #include "auth.h"
 
@@ -138,110 +139,447 @@ err:
 	return NULL;
 }
 
-static void _hmac_md5(void* payload, size_t size, unsigned char* result, SA* sa) {
-	uint64_t* auth_key = NULL;
-	int auth_key_length = 0;
+#define HMAC_MD5_AUTH_DATA_LEN	12
+static bool _hmac_md5(Packet* packet, SA* sa, uint8_t type) {
+	Ether* ether = (Ether*)(packet->buffer + packet->start);
+        IP* ip = (IP*)ether->payload;
 
-	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
-		auth_key = ((SA_ESP*)sa)->auth_key;
-		auth_key_length = ((SA_ESP*)sa)->auth_key_length;
-	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
-		auth_key = ((SA_AH*)sa)->auth_key;
-		auth_key_length = ((SA_AH*)sa)->auth_key_length;
+	switch(sa->ipsec_protocol) {
+		case IP_PROTOCOL_ESP:
+			{
+			uint64_t* auth_key = ((SA_ESP*)sa)->auth_key;
+			int auth_key_length = ((SA_ESP*)sa)->auth_key_length;
+			uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_MD5_AUTH_DATA_LEN;
+			unsigned char* result = _HMAC(EVP_md5(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ip->body + size, result, HMAC_MD5_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(ip->body + size, result, HMAC_MD5_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->length = endian16(endian16(ip->length) - HMAC_MD5_AUTH_DATA_LEN);
+						packet->end -= HMAC_MD5_AUTH_DATA_LEN;
+						return true;
+					}
+			}
+			}
+			return false;
+		case IP_PROTOCOL_AH:
+			{
+			AH* ah = (AH*)ip->body;
+			uint64_t* auth_key = ((SA_AH*)sa)->auth_key;
+			int auth_key_length = ((SA_AH*)sa)->auth_key_length;
+
+			uint8_t ecn = ip->ecn;
+			uint8_t dscp = ip->dscp;
+			uint16_t flags_offset = ip->flags_offset;
+			uint8_t ttl = ip->ttl;
+			uint8_t auth_data[HMAC_MD5_AUTH_DATA_LEN];
+			memcpy(auth_data, ah->auth_data, HMAC_MD5_AUTH_DATA_LEN);
+
+			ip->ecn = 0; //tos
+			ip->dscp = 0; //tos
+			ip->ttl = 0;
+			ip->flags_offset = 0;
+			ip->checksum = 0;
+			memset(ah->auth_data, 0, HMAC_MD5_AUTH_DATA_LEN);
+
+			unsigned char* result = _HMAC(EVP_md5(), auth_key, auth_key_length, (const unsigned char*)ip, endian16(ip->length), NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ah->auth_data, result, HMAC_MD5_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(auth_data, result, HMAC_MD5_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->ecn = ecn;
+						ip->dscp = dscp;
+						ip->ttl = ttl;
+						ip->flags_offset = flags_offset;
+						return true;
+					}
+			}
+			}
+			return false;
 	}
 
-	unsigned char* _result = _HMAC(EVP_md5(), auth_key, auth_key_length, payload, size, NULL, NULL);
-	memcpy(result, _result, AUTH_DATA_LEN);
+	return false;
 }
 
-static void _hmac_sha1(void* payload, size_t size, unsigned char* result, SA* sa) {
-	uint64_t* auth_key = NULL;
-	int auth_key_length = 0;
+#define HMAC_SHA1_AUTH_DATA_LEN	12
+static bool _hmac_sha1(Packet* packet, SA* sa, uint8_t type) {
+	Ether* ether = (Ether*)(packet->buffer + packet->start);
+        IP* ip = (IP*)ether->payload;
 
-	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
-		auth_key = ((SA_ESP*)sa)->auth_key;
-		auth_key_length = ((SA_ESP*)sa)->auth_key_length;
-	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
-		auth_key = ((SA_AH*)sa)->auth_key;
-		auth_key_length = ((SA_AH*)sa)->auth_key_length;
+	switch(sa->ipsec_protocol) {
+		case IP_PROTOCOL_ESP:
+			{
+			uint64_t* auth_key = ((SA_ESP*)sa)->auth_key;
+			int auth_key_length = ((SA_ESP*)sa)->auth_key_length;
+			uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_SHA1_AUTH_DATA_LEN;
+			unsigned char* result = _HMAC(EVP_md5(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ip->body + size, result, HMAC_SHA1_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(ip->body + size, result, HMAC_SHA1_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->length = endian16(endian16(ip->length) - HMAC_SHA1_AUTH_DATA_LEN);
+						packet->end -= HMAC_SHA1_AUTH_DATA_LEN;
+						return true;
+					}
+			}
+			}
+			return false;
+		case IP_PROTOCOL_AH:
+			{
+			AH* ah = (AH*)ip->body;
+			uint64_t* auth_key = ((SA_AH*)sa)->auth_key;
+			int auth_key_length = ((SA_AH*)sa)->auth_key_length;
+
+			uint8_t ecn = ip->ecn;
+			uint8_t dscp = ip->dscp;
+			uint16_t flags_offset = ip->flags_offset;
+			uint8_t ttl = ip->ttl;
+			uint8_t auth_data[HMAC_SHA1_AUTH_DATA_LEN];
+			memcpy(auth_data, ah->auth_data, HMAC_SHA1_AUTH_DATA_LEN);
+
+			ip->ecn = 0; //tos
+			ip->dscp = 0; //tos
+			ip->ttl = 0;
+			ip->flags_offset = 0;
+			ip->checksum = 0;
+			memset(ah->auth_data, 0, HMAC_SHA1_AUTH_DATA_LEN);
+
+			unsigned char* result = _HMAC(EVP_sha1(), auth_key, auth_key_length,  (const unsigned char*)ip, endian16(ip->length), NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ah->auth_data, result, HMAC_SHA1_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(auth_data, result, HMAC_SHA1_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->ecn = ecn;
+						ip->dscp = dscp;
+						ip->ttl = ttl;
+						ip->flags_offset = flags_offset;
+						return true;
+					}
+			}
+			}
+			return false;
 	}
 
-	unsigned char* _result = _HMAC(EVP_sha1(), auth_key, auth_key_length, payload, size, NULL, NULL);
-	memcpy(result, _result, AUTH_DATA_LEN);
+	return false;
 }
 /*
    Not implemented : No RFC
 */
-static void _keyed_md5(void* payload, size_t size, unsigned char* result, SA* sa) {
+static bool _keyed_md5(Packet* packet, SA* sa, uint8_t type) {
+	return false;
 }
 
-static void _keyed_sha1(void* payload, size_t size, unsigned char* result, SA* sa) {
+static bool _keyed_sha1(Packet* packet, SA* sa, uint8_t type) {
+	return false;
 }
 
-static void _hmac_sha256(void* payload, size_t size, unsigned char* result, SA* sa) {
-	uint64_t* auth_key = NULL;
-	int auth_key_length = 0;
+#define HMAC_SHA256_AUTH_DATA_LEN	12
+static bool _hmac_sha256(Packet* packet, SA* sa, uint8_t type) {
+	Ether* ether = (Ether*)(packet->buffer + packet->start);
+        IP* ip = (IP*)ether->payload;
 
-	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
-		auth_key = ((SA_ESP*)sa)->auth_key;
-		auth_key_length = ((SA_ESP*)sa)->auth_key_length;
-	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
-		auth_key = ((SA_AH*)sa)->auth_key;
-		auth_key_length = ((SA_AH*)sa)->auth_key_length;
+	switch(sa->ipsec_protocol) {
+		case IP_PROTOCOL_ESP:
+			{
+			uint64_t* auth_key = ((SA_ESP*)sa)->auth_key;
+			int auth_key_length = ((SA_ESP*)sa)->auth_key_length;
+			uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_SHA256_AUTH_DATA_LEN;
+			unsigned char* result = _HMAC(EVP_md5(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ip->body + size, result, HMAC_SHA256_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(ip->body + size, result, HMAC_SHA256_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->length = endian16(endian16(ip->length) - HMAC_SHA256_AUTH_DATA_LEN);
+						packet->end -= HMAC_SHA1_AUTH_DATA_LEN;
+						return true;
+					}
+			}
+			}
+			return false;
+		case IP_PROTOCOL_AH:
+			{
+			AH* ah = (AH*)ip->body;
+			uint64_t* auth_key = ((SA_AH*)sa)->auth_key;
+			int auth_key_length = ((SA_AH*)sa)->auth_key_length;
+
+			uint8_t ecn = ip->ecn;
+			uint8_t dscp = ip->dscp;
+			uint16_t flags_offset = ip->flags_offset;
+			uint8_t ttl = ip->ttl;
+			uint8_t auth_data[HMAC_SHA256_AUTH_DATA_LEN];
+			memcpy(auth_data, ah->auth_data, HMAC_SHA256_AUTH_DATA_LEN);
+
+			ip->ecn = 0; //tos
+			ip->dscp = 0; //tos
+			ip->ttl = 0;
+			ip->flags_offset = 0;
+			ip->checksum = 0;
+			memset(ah->auth_data, 0, HMAC_SHA256_AUTH_DATA_LEN);
+
+			unsigned char* result = _HMAC(EVP_sha256(), auth_key, auth_key_length,  (const unsigned char*)ip, endian16(ip->length), NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ah->auth_data, result, HMAC_SHA256_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(auth_data, result, HMAC_SHA256_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->ecn = ecn;
+						ip->dscp = dscp;
+						ip->ttl = ttl;
+						ip->flags_offset = flags_offset;
+						return true;
+					}
+			}
+			}
+			return false;
 	}
 
-	unsigned char* _result = _HMAC(EVP_sha256(), auth_key, auth_key_length, payload, size, NULL, NULL);
-	memcpy(result, _result, AUTH_DATA_LEN);
+	return false;
 }
 /*
 	TODO : Debug for 384, 512
 */
-static void _hmac_sha384(void* payload, size_t size, unsigned char* result, SA* sa) {
-	uint64_t* auth_key = NULL;
-	int auth_key_length = 0;
+#define HMAC_SHA384_AUTH_DATA_LEN	28
+static bool _hmac_sha384(Packet* packet, SA* sa, uint8_t type) {
+	Ether* ether = (Ether*)(packet->buffer + packet->start);
+        IP* ip = (IP*)ether->payload;
 
-	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
-		auth_key = ((SA_ESP*)sa)->auth_key;
-		auth_key_length = ((SA_ESP*)sa)->auth_key_length;
-	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
-		auth_key = ((SA_AH*)sa)->auth_key;
-		auth_key_length = ((SA_AH*)sa)->auth_key_length;
+	switch(sa->ipsec_protocol) {
+		case IP_PROTOCOL_ESP:
+			{
+			uint64_t* auth_key = ((SA_ESP*)sa)->auth_key;
+			int auth_key_length = ((SA_ESP*)sa)->auth_key_length;
+			uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_SHA384_AUTH_DATA_LEN;
+			unsigned char* result = _HMAC(EVP_md5(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ip->body + size, result, HMAC_SHA384_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(ip->body + size, result, HMAC_SHA384_AUTH_DATA_LEN)) {
+						return false;
+					}else {
+						ip->length = endian16(endian16(ip->length) - HMAC_SHA384_AUTH_DATA_LEN);
+						packet->end -= HMAC_SHA384_AUTH_DATA_LEN;
+						return true;
+					}
+			}
+			}
+			return false;
+		case IP_PROTOCOL_AH:
+			{
+			AH* ah = (AH*)ip->body;
+			uint64_t* auth_key = ((SA_AH*)sa)->auth_key;
+			int auth_key_length = ((SA_AH*)sa)->auth_key_length;
+
+			uint8_t ecn = ip->ecn;
+			uint8_t dscp = ip->dscp;
+			uint16_t flags_offset = ip->flags_offset;
+			uint8_t ttl = ip->ttl;
+			uint8_t auth_data[HMAC_SHA384_AUTH_DATA_LEN - 4];
+			memcpy(auth_data, ah->auth_data, HMAC_SHA384_AUTH_DATA_LEN - 4);
+
+			ip->ecn = 0; //tos
+			ip->dscp = 0; //tos
+			ip->ttl = 0;
+			ip->flags_offset = 0;
+			ip->checksum = 0;
+			memset(ah->auth_data, 0, HMAC_SHA384_AUTH_DATA_LEN - 4);
+
+			unsigned char* result = _HMAC(EVP_sha384(), auth_key, auth_key_length,  (const unsigned char*)ip, endian16(ip->length), NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ah->auth_data, result, HMAC_SHA384_AUTH_DATA_LEN - 4);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(auth_data, result, HMAC_SHA384_AUTH_DATA_LEN - 4)) {
+						return false;
+					} else {
+						ip->ecn = ecn;
+						ip->dscp = dscp;
+						ip->ttl = ttl;
+						ip->flags_offset = flags_offset;
+						return true;
+					}
+			}
+			}
+			return false;
 	}
 
-	unsigned char* _result = _HMAC(EVP_sha384(), auth_key, auth_key_length, payload, size, NULL, NULL);
-	memcpy(result, _result, AUTH_DATA_LEN);
+	return false;
 }
 
-static void _hmac_sha512(void* payload, size_t size, unsigned char* result, SA* sa) {
-	uint64_t* auth_key = NULL;
-	int auth_key_length = 0;
+#define HMAC_SHA512_AUTH_DATA_LEN	36
+static bool _hmac_sha512(Packet* packet, SA* sa, uint8_t type) {
+	Ether* ether = (Ether*)(packet->buffer + packet->start);
+        IP* ip = (IP*)ether->payload;
 
-	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
-		auth_key = ((SA_ESP*)sa)->auth_key;
-		auth_key_length = ((SA_ESP*)sa)->auth_key_length;
-	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
-		auth_key = ((SA_AH*)sa)->auth_key;
-		auth_key_length = ((SA_AH*)sa)->auth_key_length;
+	switch(sa->ipsec_protocol) {
+		case IP_PROTOCOL_ESP:
+			{
+			uint64_t* auth_key = ((SA_ESP*)sa)->auth_key;
+			int auth_key_length = ((SA_ESP*)sa)->auth_key_length;
+			uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_SHA512_AUTH_DATA_LEN;
+			unsigned char* result = _HMAC(EVP_md5(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ip->body + size, result, HMAC_SHA512_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(ip->body + size, result, HMAC_SHA512_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->length = endian16(endian16(ip->length) - HMAC_SHA512_AUTH_DATA_LEN);
+						packet->end -= HMAC_SHA512_AUTH_DATA_LEN;
+						return true;
+					}
+			}
+			}
+			return false;
+		case IP_PROTOCOL_AH:
+			{
+			AH* ah = (AH*)ip->body;
+			uint64_t* auth_key = ((SA_AH*)sa)->auth_key;
+			int auth_key_length = ((SA_AH*)sa)->auth_key_length;
+
+			uint8_t ecn = ip->ecn;
+			uint8_t dscp = ip->dscp;
+			uint16_t flags_offset = ip->flags_offset;
+			uint8_t ttl = ip->ttl;
+			uint8_t auth_data[HMAC_SHA512_AUTH_DATA_LEN - 4];
+			memcpy(auth_data, ah->auth_data, HMAC_SHA512_AUTH_DATA_LEN - 4);
+
+			ip->ecn = 0; //tos
+			ip->dscp = 0; //tos
+			ip->ttl = 0;
+			ip->flags_offset = 0;
+			ip->checksum = 0;
+			memset(ah->auth_data, 0, HMAC_SHA512_AUTH_DATA_LEN - 4);
+
+			unsigned char* result = _HMAC(EVP_sha512(), auth_key, auth_key_length,  (const unsigned char*)ip, endian16(ip->length), NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ah->auth_data, result, HMAC_SHA512_AUTH_DATA_LEN - 4);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(auth_data, result, HMAC_SHA512_AUTH_DATA_LEN - 4)) {
+						return false;
+					} else {
+						ip->ecn = ecn;
+						ip->dscp = dscp;
+						ip->ttl = ttl;
+						ip->flags_offset = flags_offset;
+						return true;
+					}
+			}
+			}
+			return false;
 	}
-
-	unsigned char* _result = _HMAC(EVP_sha512(), auth_key, auth_key_length, payload, size, NULL, NULL);
-	memcpy(result, _result, AUTH_DATA_LEN);
+	return false;
 }
 
-static void _hmac_ripemd160(void* payload, size_t size, unsigned char* result, SA* sa) {
-	uint64_t* auth_key = NULL;
-	int auth_key_length = 0;
+#define HMAC_RIPEMD160_AUTH_DATA_LEN	12
+static bool _hmac_ripemd160(Packet* packet, SA* sa, uint8_t type) {
+	Ether* ether = (Ether*)(packet->buffer + packet->start);
+        IP* ip = (IP*)ether->payload;
 
-	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
-		auth_key = ((SA_ESP*)sa)->auth_key;
-		auth_key_length = ((SA_ESP*)sa)->auth_key_length;
-	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
-		auth_key = ((SA_AH*)sa)->auth_key;
-		auth_key_length = ((SA_AH*)sa)->auth_key_length;
+	switch(sa->ipsec_protocol) {
+		case IP_PROTOCOL_ESP:
+			{
+			uint64_t* auth_key = ((SA_ESP*)sa)->auth_key;
+			int auth_key_length = ((SA_ESP*)sa)->auth_key_length;
+			uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_RIPEMD160_AUTH_DATA_LEN;
+			unsigned char* result = _HMAC(EVP_ripemd160(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ip->body + size, result, HMAC_RIPEMD160_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(ip->body + size, result, HMAC_RIPEMD160_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->length = endian16(endian16(ip->length) - HMAC_RIPEMD160_AUTH_DATA_LEN);
+						packet->end -= HMAC_RIPEMD160_AUTH_DATA_LEN;
+						return true;
+					}
+			}
+			}
+			return false;
+		case IP_PROTOCOL_AH:
+			{
+			AH* ah = (AH*)ip->body;
+			uint64_t* auth_key = ((SA_AH*)sa)->auth_key;
+			int auth_key_length = ((SA_AH*)sa)->auth_key_length;
+
+			uint8_t ecn = ip->ecn;
+			uint8_t dscp = ip->dscp;
+			uint16_t flags_offset = ip->flags_offset;
+			uint8_t ttl = ip->ttl;
+			uint8_t auth_data[HMAC_RIPEMD160_AUTH_DATA_LEN];
+			memcpy(auth_data, ah->auth_data, HMAC_RIPEMD160_AUTH_DATA_LEN);
+
+			ip->ecn = 0; //tos
+			ip->dscp = 0; //tos
+			ip->ttl = 0;
+			ip->flags_offset = 0;
+			ip->checksum = 0;
+			memset(ah->auth_data, 0, HMAC_RIPEMD160_AUTH_DATA_LEN);
+
+			unsigned char* result = _HMAC(EVP_ripemd160(), auth_key, auth_key_length, (const unsigned char*)ip, endian16(ip->length), NULL, NULL);
+
+			switch(type) {
+				case AUTH_REQUEST:
+					memcpy(ah->auth_data, result, HMAC_RIPEMD160_AUTH_DATA_LEN);
+					return true;
+				case AUTH_CHECK:
+					if(memcmp(auth_data, result, HMAC_RIPEMD160_AUTH_DATA_LEN)) {
+						return false;
+					} else {
+						ip->ecn = ecn;
+						ip->dscp = dscp;
+						ip->ttl = ttl;
+						ip->flags_offset = flags_offset;
+						return true;
+					}
+			}
+			}
+			return false;
 	}
 
-	unsigned char* _result = _HMAC(EVP_ripemd160(), auth_key, auth_key_length, payload, size, NULL, NULL);
-	memcpy(result, _result, AUTH_DATA_LEN);
+	return false;
 }
 /*
    Not implemented : No openssl function
@@ -249,25 +587,27 @@ static void _hmac_ripemd160(void* payload, size_t size, unsigned char* result, S
 	   AES-XCBC-MAC is not directly supported. However, it's very simple to
 	   implement as it's based on AES-CBC for which there is support.
 */
-static void _aes_xcbc_mac(void* payload, size_t size, unsigned char* result, SA* sa) {
+static bool _aes_xcbc_mac(Packet* packet, SA* sa, uint8_t type) {
+	return false;
 }
 /* 
    Not implemented : Only for BSD
 */
-static void _tcp_md5(void* payload, size_t size, unsigned char* result, SA* sa) {
+static bool _tcp_md5(Packet* packet, SA* sa, uint8_t type) {
+	return false;
 }
 
 Authentication authentications[] = {
-	{.authenticate = _hmac_md5},
-	{.authenticate = _hmac_sha1},
-	{.authenticate = _keyed_md5},
-	{.authenticate = _keyed_sha1},
-	{.authenticate = _hmac_sha256},
-	{.authenticate = _hmac_sha384},
-	{.authenticate = _hmac_sha512},
-	{.authenticate = _hmac_ripemd160},
-	{.authenticate = _aes_xcbc_mac},
-	{.authenticate = _tcp_md5},
+	{.authenticate = _hmac_md5, .auth_len = HMAC_MD5_AUTH_DATA_LEN},
+	{.authenticate = _hmac_sha1, .auth_len = HMAC_SHA1_AUTH_DATA_LEN},
+	{.authenticate = _keyed_md5, .auth_len = 0},
+	{.authenticate = _keyed_sha1, .auth_len = 0},
+	{.authenticate = _hmac_sha256, .auth_len = HMAC_SHA256_AUTH_DATA_LEN},
+	{.authenticate = _hmac_sha384, .auth_len = HMAC_SHA384_AUTH_DATA_LEN},
+	{.authenticate = _hmac_sha512, .auth_len = HMAC_SHA512_AUTH_DATA_LEN},
+	{.authenticate = _hmac_ripemd160, .auth_len = HMAC_RIPEMD160_AUTH_DATA_LEN},
+	{.authenticate = _aes_xcbc_mac, .auth_len = 0},
+	{.authenticate = _tcp_md5, .auth_len = 0},
 };
 
 Authentication* get_authentication(int algorithm) {

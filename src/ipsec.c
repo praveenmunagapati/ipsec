@@ -18,7 +18,7 @@
 #include "ike.h"
 #include "mode.h"
 
-#define DEBUG	1
+#define DEBUG	0
 
 Map* global_map;
 
@@ -97,19 +97,16 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 	// 2. Seq# Validation
 	ESP* esp = (ESP*)ip->body;
 
-	int size = endian16(ip->length) - (ip->ihl * 4) - ESP_HEADER_LEN;
 	
 	if(((SA_ESP*)sa)->auth) {
-		uint8_t result[12];
-		((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(&(ip->body), size, result, sa);
-		if(memcmp(result, ip->body + size, 12) != 0) {
+		if(!((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(packet, sa, AUTH_CHECK)) {
 #if DEBUG
 			printf(" 3. ICV Validation : Discard Packet \n");
 #endif
 			return false;
 		}
-		size -= ICV_LEN;
 	}
+	int size = endian16(ip->length) - (ip->ihl * 4);
 
 	((Cryptography*)(((SA_ESP*)sa)->crypto))->decrypt(esp, size, (SA_ESP*)sa); 
 	
@@ -162,8 +159,7 @@ static bool ipsec_encrypt(Packet* packet, Content* content, SA* sa) {
 	esp->spi = endian32(sa->spi);
 	
 	if(((SA_ESP*)sa)->auth) {
-		int size = endian16(ip->length) - IP_LEN;
-		((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(ip->body, size, ip->body + size, sa);
+		((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(packet, sa, AUTH_REQUEST);
 		ip->length = endian16(endian16(ip->length) + ICV_LEN);
 		packet->end += ICV_LEN;
 	}
@@ -194,42 +190,17 @@ static bool ipsec_proof(Packet* packet, SA* sa) {
         IP* ip = (IP*)ether->payload;
 	AH* ah = (AH*)ip->body;
 
-	uint8_t ecn = ip->ecn;
-	uint8_t dscp = ip->dscp;
-	uint16_t flags_offset = ip->flags_offset;
-	uint8_t ttl = ip->ttl;
-	uint8_t auth_data[AUTH_DATA_LEN];
-	memcpy(auth_data, ah->auth_data, AUTH_DATA_LEN);
-
-	//Authenticate
-	ip->ecn = 0; //tos
-	ip->dscp = 0; //tos
-	ip->ttl = 0;
-	ip->flags_offset = 0;
-	ip->checksum = 0;
-	memset(ah->auth_data, 0, AUTH_DATA_LEN);
-
-	((Authentication*)(((SA_AH*)sa)->auth))->authenticate(ip, endian16(ip->length), ah->auth_data, sa);
-
-	if(memcmp(auth_data, ah->auth_data, AUTH_DATA_LEN)) {
+	if(!((Authentication*)(((SA_AH*)sa)->auth))->authenticate(packet, sa, AUTH_CHECK)) {
 		return false;
 	}
 
-	ip->ecn = ecn;
-	ip->dscp = dscp;
-	ip->ttl = ttl;
-
 	if(ah->next_hdr == IP_PROTOCOL_IP)
 		//Tunnel mode
-		tunnel_unset(packet, AH_HEADER_LEN, 0);
+		tunnel_unset(packet, (ah->len + 2) * 4, 0);
 	else {
 		//Transport mode
 		ip->protocol = ah->next_hdr;
-		transport_unset(packet, AH_HEADER_LEN, 0);
-		ip->ecn = ecn;
-		ip->dscp = dscp;
-		ip->ttl = ttl;
-		ip->flags_offset = flags_offset;
+		transport_unset(packet, (ah->len + 2) * 4, 0);
 		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 	}
 
@@ -242,7 +213,7 @@ static bool ipsec_auth(Packet* packet, Content* content, SA* sa) {
 	AH* ah = NULL;
 
 	if(content->ipsec_mode == IPSEC_MODE_TRANSPORT) {
-		if(!transport_set(packet, AH_HEADER_LEN, 0))
+		if(!transport_set(packet, 12 + ((Authentication*)(((SA_AH*)sa)->auth))->auth_len, 0))
 			return false;
 
 		ether = (Ether*)(packet->buffer + packet->start);
@@ -252,7 +223,7 @@ static bool ipsec_auth(Packet* packet, Content* content, SA* sa) {
 		//ip->length = endian16(endian16(ip->length) + AH_HEADER_LEN + ICV_LEN);
 		ah->next_hdr = ip->protocol;
 	} else if(content->ipsec_mode == IPSEC_MODE_TUNNEL) {
-		if(!tunnel_set(packet, AH_HEADER_LEN, 0))
+		if(!tunnel_set(packet, 12 + ((Authentication*)(((SA_AH*)sa)->auth))->auth_len, 0))
 			return false;
 
 		ether = (Ether*)(packet->buffer + packet->start);
@@ -263,7 +234,7 @@ static bool ipsec_auth(Packet* packet, Content* content, SA* sa) {
 		ah->next_hdr = IP_PROTOCOL_IP;
 	}
 
-	ah->len = AH_LEN; //check
+	ah->len = ((12 + ((Authentication*)(((SA_AH*)sa)->auth))->auth_len) / 4) - 2;
 	ah->spi = endian32(sa->spi);
 	ah->seq_num = endian32(++sa->window->seq_counter);
 
@@ -285,7 +256,7 @@ static bool ipsec_auth(Packet* packet, Content* content, SA* sa) {
 			ip->destination = endian32(((Content_AH_Tunnel*)content)->t_dest_ip);
 	}
 
-	((Authentication*)(((SA_AH*)sa)->auth))->authenticate(ip, endian16(ip->length), ah->auth_data, sa);
+	((Authentication*)(((SA_AH*)sa)->auth))->authenticate(packet, sa, AUTH_REQUEST);
 
 	switch(content->ipsec_mode) {
 		case IPSEC_MODE_TRANSPORT:

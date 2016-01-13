@@ -805,7 +805,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 						auth_key_length = strlen(argv[i]) - 2;
 						auth_key_length = auth_key_length / 2 + !!(auth_key_length % 2);
 
-						if(auth_key_length != 48) {
+						if(auth_key_length != 64) {
 							return i;
 						}
 						if(!parse_key(ni, argv[i], &auth_key, auth_key_length)) {
