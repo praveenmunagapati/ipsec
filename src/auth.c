@@ -409,20 +409,20 @@ static bool _hmac_sha384(Packet* packet, SA* sa, uint8_t type) {
 					{
 					uint16_t size = endian16(ip->length) - (ip->ihl * 4);
 					unsigned char* result = _HMAC(EVP_sha384(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
-					memcpy(ip->body + size, result, HMAC_SHA384_AUTH_DATA_LEN);
-					ip->length = endian16(endian16(ip->length) + HMAC_SHA384_AUTH_DATA_LEN);
-					packet->end += HMAC_SHA384_AUTH_DATA_LEN;
+					memcpy(ip->body + size, result, HMAC_SHA384_AUTH_DATA_LEN - 4);
+					ip->length = endian16(endian16(ip->length) + HMAC_SHA384_AUTH_DATA_LEN - 4);
+					packet->end += HMAC_SHA384_AUTH_DATA_LEN - 4;
 					return true;
 					}
 				case AUTH_CHECK:
 					{
-					uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_SHA384_AUTH_DATA_LEN;
+					uint16_t size = endian16(ip->length) - (ip->ihl * 4) - (HMAC_SHA384_AUTH_DATA_LEN - 4);
 					unsigned char* result = _HMAC(EVP_sha384(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
-					if(memcmp(ip->body + size, result, HMAC_SHA384_AUTH_DATA_LEN)) {
+					if(memcmp(ip->body + size, result, HMAC_SHA384_AUTH_DATA_LEN - 4)) {
 						return false;
 					}else {
-						ip->length = endian16(endian16(ip->length) - HMAC_SHA384_AUTH_DATA_LEN);
-						packet->end -= HMAC_SHA384_AUTH_DATA_LEN;
+						ip->length = endian16(endian16(ip->length) - (HMAC_SHA384_AUTH_DATA_LEN - 4));
+						packet->end -= (HMAC_SHA384_AUTH_DATA_LEN - 4);
 						return true;
 					}
 					}
@@ -489,20 +489,20 @@ static bool _hmac_sha512(Packet* packet, SA* sa, uint8_t type) {
 					{
 					uint16_t size = endian16(ip->length) - (ip->ihl * 4);
 					unsigned char* result = _HMAC(EVP_sha512(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
-					memcpy(ip->body + size, result, HMAC_SHA512_AUTH_DATA_LEN);
-					ip->length = endian16(endian16(ip->length) + HMAC_SHA512_AUTH_DATA_LEN);
-					packet->end += HMAC_SHA512_AUTH_DATA_LEN;
+					memcpy(ip->body + size, result, HMAC_SHA512_AUTH_DATA_LEN - 4);
+					ip->length = endian16(endian16(ip->length) + (HMAC_SHA512_AUTH_DATA_LEN - 4));
+					packet->end += (HMAC_SHA512_AUTH_DATA_LEN - 4);
 					return true;
 					}
 				case AUTH_CHECK:
 					{
-					uint16_t size = endian16(ip->length) - (ip->ihl * 4) - HMAC_SHA512_AUTH_DATA_LEN;
+					uint16_t size = endian16(ip->length) - (ip->ihl * 4) - (HMAC_SHA512_AUTH_DATA_LEN - 4);
 					unsigned char* result = _HMAC(EVP_sha512(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
-					if(memcmp(ip->body + size, result, HMAC_SHA512_AUTH_DATA_LEN)) {
+					if(memcmp(ip->body + size, result, HMAC_SHA512_AUTH_DATA_LEN - 4)) {
 						return false;
 					} else {
-						ip->length = endian16(endian16(ip->length) - HMAC_SHA512_AUTH_DATA_LEN);
-						packet->end -= HMAC_SHA512_AUTH_DATA_LEN;
+						ip->length = endian16(endian16(ip->length) - (HMAC_SHA512_AUTH_DATA_LEN - 4));
+						packet->end -= (HMAC_SHA512_AUTH_DATA_LEN - 4);
 						return true;
 					}
 					}
