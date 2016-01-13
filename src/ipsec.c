@@ -18,7 +18,7 @@
 #include "ike.h"
 #include "mode.h"
 
-#define DEBUG	0
+#define DEBUG	1
 
 Map* global_map;
 
@@ -154,14 +154,12 @@ static bool ipsec_encrypt(Packet* packet, Content* content, SA* sa) {
 
 	ESP* esp = (ESP*)ip->body;
 	// 5. Seq# Validation
-	((Cryptography*)(((SA_ESP*)sa)->crypto))->encrypt(esp, endian16(ip->length) - IP_LEN - ESP_HEADER_LEN, (SA_ESP*)sa);
+	((Cryptography*)(((SA_ESP*)sa)->crypto))->encrypt(esp, endian16(ip->length) - (ip->ihl * 4) - ESP_HEADER_LEN, (SA_ESP*)sa);
 	esp->seq_num = endian32(window_get_seq_counter(sa->window));
 	esp->spi = endian32(sa->spi);
 	
 	if(((SA_ESP*)sa)->auth) {
 		((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(packet, sa, AUTH_REQUEST);
-		ip->length = endian16(endian16(ip->length) + ICV_LEN);
-		packet->end += ICV_LEN;
 	}
 
 	ip->protocol = IP_PROTOCOL_ESP;

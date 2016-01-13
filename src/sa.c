@@ -121,8 +121,6 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 						/*Des*/
 						DES_cblock des_key;
 						uint64_t key = *(uint64_t*)(((SA_ESP*)sa)->crypto_key);
-						//key = endian64(key);
-						printf("key: %lx\n", key);
 						memcpy(des_key, &key, sizeof(DES_cblock));
 						DES_set_odd_parity(&des_key);
 
