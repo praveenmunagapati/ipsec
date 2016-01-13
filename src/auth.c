@@ -569,6 +569,8 @@ static bool _hmac_ripemd160(Packet* packet, SA* sa, uint8_t type) {
 					uint16_t size = endian16(ip->length) - (ip->ihl * 4);
 					unsigned char* result = _HMAC(EVP_ripemd160(), auth_key, auth_key_length, ip->body, size, NULL, NULL);
 					memcpy(ip->body + size, result, HMAC_RIPEMD160_AUTH_DATA_LEN);
+					ip->length = endian16(endian16(ip->length) + HMAC_RIPEMD160_AUTH_DATA_LEN);
+					packet->end += HMAC_RIPEMD160_AUTH_DATA_LEN;
 					return true;
 					}
 				case AUTH_CHECK:
