@@ -361,7 +361,7 @@ next:
 			pre_sa = next_sa;
 		}
 	}
-	//sp_add_sa(sp, first_sa);
+	sp_add_sa(sp, first_sa);
 
 	return first_sa;
 }

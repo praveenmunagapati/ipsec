@@ -1654,14 +1654,6 @@ static int cmd_content(int argc, char** argv, void(*callback)(char* result, int 
 	return 0;
 }
 
-static int cmd_start(int argc, char** argv, void(*callback)(char* result, int exit_status)) {
-	return 0;
-}
-
-static int cmd_stop(int argc, char** argv, void(*callback)(char* result, int exit_status)) {
-	return 0;
-}
-
 static int cmd_exit(int argc, char** argv, void(*callback)(char* result, int exit_status)) {
 	return 0;
 }
@@ -1697,16 +1689,6 @@ Command commands[] = {
 		.name = "content",
 		.desc = "Manage IPSec Contents\nadd update delete flush dump",
 		.func = cmd_content
-	},
-	{
-		.name = "start",
-		.desc = "Start IPSec Application",
-		.func = cmd_start
-	},
-	{
-		.name = "stop",
-		.desc = "Stop IPSec Application",
-		.func = cmd_stop
 	},
 	{
 		.name = "exit",

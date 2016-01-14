@@ -18,7 +18,7 @@
 #include "ike.h"
 #include "mode.h"
 
-#define DEBUG	1
+#define DEBUG	0
 
 Map* global_map;
 
@@ -29,11 +29,10 @@ bool ipsec_ginit() {
 		return false;
 
 	extern void* __gmalloc_pool;
-	Map* map = map_create(8, NULL, NULL, __gmalloc_pool);
+	Map* map = map_create(8, map_string_hash, map_string_equals, __gmalloc_pool);
 	if(!map) {
 		return false;
 	}
-
 	shared_set(map);
 
 	printf("Initialize SAD...\n");
@@ -71,7 +70,6 @@ bool ipsec_init() {
 
 void ipsec_destroy() {
 	//TODO: Fix event api
-
 	//event_destroy();
 }
 
@@ -122,11 +120,12 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 		ip->checksum = 0;
 		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
+		return true;
 	} else if(sa->ipsec_mode == IPSEC_MODE_TUNNEL) {
 		tunnel_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
-	}
-
-	return true;
+		return true;
+	} else
+		return false;
 }
 
 static bool ipsec_encrypt(Packet* packet, Content* content, SA* sa) {
@@ -203,15 +202,18 @@ static bool ipsec_proof(Packet* packet, SA* sa) {
 		return false;
 	}
 
-	if(ah->next_hdr == IP_PROTOCOL_IP)
+	if(ah->next_hdr == IP_PROTOCOL_IP && sa->ipsec_mode == IPSEC_MODE_TUNNEL) {
 		//Tunnel mode
 		tunnel_unset(packet, (ah->len + 2) * 4, 0);
-	else {
+	} else if(sa->ipsec_mode == IPSEC_MODE_TRANSPORT) {
 		//Transport mode
 		ip->protocol = ah->next_hdr;
 		transport_unset(packet, (ah->len + 2) * 4, 0);
+		ether = (Ether*)(packet->buffer + packet->start);
+		ip = (IP*)ether->payload;
 		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
-	}
+	} else
+		return false;
 
 	return true;
 }
@@ -373,9 +375,6 @@ error:
 }
 
 static bool outbound_process(Packet* packet) {
-#if DEBUG
-	printf("outbound process\n");
-#endif
 	NetworkInterface* ni = packet->ni;
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
@@ -428,7 +427,8 @@ tcp_packet:
 			socket_add(ni, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination), socket);
 		}
 		
-		//set dmac
+		ether->smac = endian48(sp->out_ni->mac);
+		ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), 0));
 		ni_output(sp->out_ni, packet);
 		spd_outbound_un_rlock(ni);
 		sad_un_rlock(ni);
@@ -526,7 +526,7 @@ tcp_packet:
 	ether = (Ether*)(packet->buffer + packet->start);
         ip = (IP*)ether->payload;
 	ether->smac = endian48(sp->out_ni->mac);
-	ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), endian32(ip->source)));
+	ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), 0));
 	ether->type = endian16(ETHER_TYPE_IPv4);
 
 	ni_output(sp->out_ni, packet);
