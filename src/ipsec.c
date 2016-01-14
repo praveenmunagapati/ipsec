@@ -133,16 +133,21 @@ static bool ipsec_encrypt(Packet* packet, Content* content, SA* sa) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 
-	int padding_len = (endian16(ip->length) + ESP_TRAILER_LEN) % ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len;
-
-	//TODO Tunnel mode
-//	if(padding_len != 0)
-//		padding_len = ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len - padding_len;
-
+	int padding_len = 0;
 	if(content->ipsec_mode == IPSEC_MODE_TRANSPORT) {
+		padding_len = (endian16(ip->length) - (ip->ihl * 4) + ESP_TRAILER_LEN) % ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len;
+
+		if(padding_len != 0)
+			padding_len = ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len - padding_len;
+
 		if(!transport_set(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN))
 			return false;
 	} else if(content->ipsec_mode == IPSEC_MODE_TUNNEL) {
+		padding_len = (endian16(ip->length) + ESP_TRAILER_LEN) % ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len;
+
+		if(padding_len != 0)
+			padding_len = ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len - padding_len;
+
 		if(!tunnel_set(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN))
 			return false;
 	}
