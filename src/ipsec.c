@@ -18,8 +18,6 @@
 #include "ike.h"
 #include "mode.h"
 
-#define DEBUG	0
-
 Map* global_map;
 
 bool ipsec_ginit() {
@@ -97,9 +95,6 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 	
 	if(((SA_ESP*)sa)->auth) {
 		if(!((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(packet, sa, AUTH_CHECK)) {
-#if DEBUG
-			printf(" 3. ICV Validation : Discard Packet \n");
-#endif
 			return false;
 		}
 	}
@@ -289,9 +284,6 @@ static bool ipsec_auth(Packet* packet, Content* content, SA* sa) {
 }
 
 static bool inbound_process(Packet* packet) {
-#if DEBUG
-	printf("inbound process\n");
-#endif
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 
@@ -307,9 +299,6 @@ static bool inbound_process(Packet* packet) {
 				ESP* esp = (ESP*)ip->body;
 				sa = sad_get_sa(ni, endian32(esp->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
-#if DEBUG
-					printf("Can't found SA\n");
-#endif
 					goto error;
 				}
 				if(!ipsec_decrypt(packet, sa)) {
@@ -322,9 +311,6 @@ static bool inbound_process(Packet* packet) {
 				AH* ah = (AH*)ip->body;
 				sa = sad_get_sa(ni, endian32(ah->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
-#if DEBUG
-					printf("Can't found SA\n");
-#endif
 					goto error;
 				}
 				if(!ipsec_proof(packet, sa)) {
@@ -341,9 +327,6 @@ static bool inbound_process(Packet* packet) {
 	// 6. SPD Lookup 
 	SP* sp = spd_get_sp(ni, DIRECTION_IN, ip);
 	if(!sp) {
-#if DEBUG
-		printf("Can't found SP\n");
-#endif
 		goto error;
 	}
 
@@ -411,9 +394,6 @@ static bool outbound_process(Packet* packet) {
 		sp = spd_get_sp(packet->ni, DIRECTION_OUT, ip);
 
 	if(!sp) {
-#if DEBUG
-		printf("Can't found sp\n");
-#endif
 		spd_outbound_un_rlock(ni);
 		sad_un_rlock(ni);
 		return false;
@@ -439,36 +419,21 @@ tcp_packet:
 	//get already pointed SA, SA bundle
 	if(!sa) {
 		sa = sp_get_sa(sp, ip);
-#if DEBUG
-		if(sa)
-			printf("SA get\n");
-#endif
 	}
 
 	if(!sa) {
 		//get SA, SA bundle from sad
 		sa = sp_find_sa(sp, ip);
-#if DEBUG
-		if(sa)
-			printf("SA find\n");
-#endif
 	}
 
 	if(!sa) {
 		sa = ike_sa_get(ip, sp); //this function not work;
-#if DEBUG
-		if(sa)
-			printf("SA get from ike\n");
-#endif
 	}
 
 	if(!sa) {
 		ni_free(packet);
 		spd_outbound_un_rlock(ni);
 		sad_un_rlock(ni);
-#if DEBUG
-		printf("Can't found SA\n");
-#endif
 
 		return true;
 	}
@@ -488,9 +453,7 @@ tcp_packet:
 			ni_free(packet);
 			spd_outbound_un_rlock(ni);
 			sad_un_rlock(ni);
-#if DEBUG
-			printf("Can't found SA\n");
-#endif
+
 			return true;
 		}
 
@@ -500,9 +463,7 @@ tcp_packet:
 					ni_free(packet);
 					spd_outbound_un_rlock(ni);
 					sad_un_rlock(ni);
-#if DEBUG
-					printf("Can't encrypt packet\n");
-#endif
+
 					return true;
 				}
 				break;
@@ -512,9 +473,7 @@ tcp_packet:
 					ni_free(packet);
 					spd_outbound_un_rlock(ni);
 					sad_un_rlock(ni);
-#if DEBUG
-					printf("Can't authenticate packet\n");
-#endif
+
 					return true;
 				}
 				break;
