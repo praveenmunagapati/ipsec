@@ -9,7 +9,6 @@
 bool transport_set(Packet* packet, uint16_t header_len, uint16_t tail_len) {
 	//check size
 	if(packet->start > header_len && (packet->end + tail_len) < packet->size) { 
-		printf("type3\n");
 		Ether* _ether = (Ether*)(packet->buffer + packet->start);
 		IP* _ip = (IP*)_ether->payload;
 		_ip->length = endian16(endian16(_ip->length) + header_len + tail_len);
@@ -21,7 +20,6 @@ bool transport_set(Packet* packet, uint16_t header_len, uint16_t tail_len) {
 
 		return true;
 	} else if(packet->end + header_len + tail_len < packet->size) {
-		printf("type4\n");
 		Ether* _ether = (Ether*)(packet->buffer + packet->start);
 		IP* _ip = (IP*)_ether->payload;
 		_ip->length = endian16(endian16(_ip->length) + header_len + tail_len);
@@ -42,7 +40,7 @@ bool transport_unset(Packet* packet, uint16_t header_len, uint16_t tail_len) {
 	IP* _ip = (IP*)_ether->payload;
 	_ip->length = endian16(endian16(_ip->length) - header_len - tail_len);
 
-	memmove(_ether + header_len, _ether, ETHER_LEN + _ip->ihl * 4);
+	memmove((uint8_t*)_ether + header_len, _ether, ETHER_LEN + (_ip->ihl * 4));
 
 	packet->start += header_len;
 	packet->end -= tail_len;

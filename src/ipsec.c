@@ -96,7 +96,6 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 
 	// 2. Seq# Validation
 	ESP* esp = (ESP*)ip->body;
-
 	
 	if(((SA_ESP*)sa)->auth) {
 		if(!((Authentication*)(((SA_ESP*)sa)->auth))->authenticate(packet, sa, AUTH_CHECK)) {
@@ -117,6 +116,11 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 		ip->protocol = esp_trailer->next_hdr;
 		ip->ttl--;
 		transport_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
+		ether = (Ether*)(packet->buffer + packet->start);
+		ip = (IP*)ether->payload;
+
+		ip->checksum = 0;
+		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
 	} else if(sa->ipsec_mode == IPSEC_MODE_TUNNEL) {
 		tunnel_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
@@ -129,9 +133,11 @@ static bool ipsec_encrypt(Packet* packet, Content* content, SA* sa) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 
-	int padding_len = (endian16(ip->length) + 2) % ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len;
-	if(padding_len != 0)
-		padding_len = ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len - padding_len;
+	int padding_len = (endian16(ip->length) + ESP_TRAILER_LEN) % ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len;
+
+	//TODO Tunnel mode
+//	if(padding_len != 0)
+//		padding_len = ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len - padding_len;
 
 	if(content->ipsec_mode == IPSEC_MODE_TRANSPORT) {
 		if(!transport_set(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN))
