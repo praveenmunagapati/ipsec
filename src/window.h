@@ -16,5 +16,5 @@ typedef struct _Window {
 } Window;
 
 int checkWindow(Window* window, uint32_t seq);
-uint8_t window_get_seq_counter(Window* window);
+uint32_t window_get_seq_counter(Window* window);
 #endif /* __WINDOW_H__ */

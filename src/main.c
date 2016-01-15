@@ -413,7 +413,7 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 			return -3;
 
 		uint32_t gw = 0;
-		uint8_t mask = 0xff;
+		uint8_t mask = 24;
 		for(int i = 4; i < argc; i++) {
 			if(strcmp(argv[i], "-g")) {
 				i++;
@@ -436,12 +436,7 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 		}
 
 		interface->gateway = gw;
-		if(mask == 0xff) {
-			mask = 24;
-		}
-
-		interface->gateway = 0xffffffff;
-		interface->gateway = interface->gateway << (32 - mask);
+		interface->netmask = 0xffffffff << (32 - mask);
 
 	} else if(!strcmp("remove", argv[1])) {
 		if(argc != 4) {
@@ -1223,26 +1218,28 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 		uint8_t direction = 0;
 		uint8_t index = 0;
 
-		if(!strcmp(argv[i], "-direction")) {
-			i++;
-			if(!strcmp(argv[i], "in")) {
-				direction = DIRECTION_IN;
-			} else if(!strcmp(argv[i], "out")) {
-				direction = DIRECTION_OUT;
+		for(; i < argc; i++) {
+			if(!strcmp(argv[i], "-direction")) {
+				i++;
+				if(!strcmp(argv[i], "in")) {
+					direction = DIRECTION_IN;
+				} else if(!strcmp(argv[i], "out")) {
+					direction = DIRECTION_OUT;
+				} else {
+					printf("Invalid direction\n");
+					return i;
+				}
+			} else if(!strcmp(argv[i], "-i")) {
+				i++;
+				if(!is_uint8(argv[i])) {
+					printf("index is must be uint8\n");
+					return i;
+				}
+				index = parse_uint8(argv[i]);
 			} else {
-				printf("Invalid direction\n");
+				printf("parameter is wrong\n");
 				return i;
 			}
-		} else if(!strcmp(argv[i], "-i")) {
-			i++;
-			if(!is_uint8(argv[i])) {
-				printf("index is must be uint8\n");
-				return i;
-			}
-			index = parse_uint8(argv[i]);
-		} else {
-			printf("parameter is wrong\n");
-			return i;
 		}
 
 		bool result = false;

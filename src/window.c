@@ -32,8 +32,8 @@ int checkWindow(Window* window, uint32_t seq) {
 		return 0; /* out of order but good */
 }
 
-uint8_t window_get_seq_counter(Window* window) {
-	uint8_t seq_counter;
+uint32_t window_get_seq_counter(Window* window) {
+	uint32_t seq_counter;
 	lock_lock(&window->seq_counter_lock);
 	seq_counter = ++window->seq_counter;
 	lock_unlock(&window->seq_counter_lock);

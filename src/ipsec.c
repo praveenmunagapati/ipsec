@@ -73,6 +73,7 @@ void ipsec_destroy() {
 
 void ipsec_gdestroy() {
 	printf("Destroy IPSec...\n");
+
 	int id = thread_id();
 	if(id != 0)
 		return;
@@ -349,9 +350,9 @@ static bool inbound_process(Packet* packet) {
 	return true;
 
 error:
+	ni_free(packet);
 	spd_inbound_un_rlock(ni);
 	sad_un_rlock(ni);
-	ni_free(packet);
 	list_destroy(sa_list);
 
 	return true;
@@ -416,13 +417,11 @@ tcp_packet:
 		return true;
 	}
 
-	//get already pointed SA, SA bundle
 	if(!sa) {
 		sa = sp_get_sa(sp, ip);
 	}
 
 	if(!sa) {
-		//get SA, SA bundle from sad
 		sa = sp_find_sa(sp, ip);
 	}
 
