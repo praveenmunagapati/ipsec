@@ -435,6 +435,11 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 			}
 		}
 
+		if(gw == 0) {
+			printf("Set Gateway Address\n");
+			return -4;
+		}
+
 		interface->gateway = gw;
 		interface->netmask = 0xffffffff << (32 - mask);
 

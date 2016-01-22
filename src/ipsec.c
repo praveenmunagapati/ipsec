@@ -105,11 +105,14 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 	
 	// 5. ESP Header & Trailer Deletion
 	ESP_T* esp_trailer = (ESP_T*)(ip->body + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
-	int padding_len = esp_trailer->pad_len;
+	uint8_t padding_len = esp_trailer->pad_len;
 	if(sa->ipsec_mode == IPSEC_MODE_TRANSPORT) {
+		//TODO length check
 		ip->protocol = esp_trailer->next_hdr;
 		ip->ttl--;
-		transport_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
+		if(!transport_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN))
+			return false;
+
 		ether = (Ether*)(packet->buffer + packet->start);
 		ip = (IP*)ether->payload;
 
@@ -118,8 +121,8 @@ static bool ipsec_decrypt(Packet* packet, SA* sa) {
 
 		return true;
 	} else if(sa->ipsec_mode == IPSEC_MODE_TUNNEL) {
-		tunnel_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
-		return true;
+		//TODO length check
+		return tunnel_unset(packet, ESP_HEADER_LEN + ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len, padding_len + ESP_TRAILER_LEN);
 	} else
 		return false;
 }
@@ -128,7 +131,7 @@ static bool ipsec_encrypt(Packet* packet, Content* content, SA* sa) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 
-	int padding_len = 0;
+	uint16_t padding_len = 0;
 	if(content->ipsec_mode == IPSEC_MODE_TRANSPORT) {
 		padding_len = (endian16(ip->length) - (ip->ihl * 4) + ESP_TRAILER_LEN) % ((Cryptography*)(((SA_ESP*)sa)->crypto))->iv_len;
 
@@ -200,11 +203,14 @@ static bool ipsec_proof(Packet* packet, SA* sa) {
 
 	if(ah->next_hdr == IP_PROTOCOL_IP && sa->ipsec_mode == IPSEC_MODE_TUNNEL) {
 		//Tunnel mode
-		tunnel_unset(packet, (ah->len + 2) * 4, 0);
+		return tunnel_unset(packet, (ah->len + 2) * 4, 0);
 	} else if(sa->ipsec_mode == IPSEC_MODE_TRANSPORT) {
 		//Transport mode
 		ip->protocol = ah->next_hdr;
-		transport_unset(packet, (ah->len + 2) * 4, 0);
+
+		if(!transport_unset(packet, (ah->len + 2) * 4, 0))
+			return false;
+
 		ether = (Ether*)(packet->buffer + packet->start);
 		ip = (IP*)ether->payload;
 		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
@@ -339,7 +345,32 @@ static bool inbound_process(Packet* packet) {
 	ether = (Ether*)(packet->buffer + packet->start);
         ip = (IP*)ether->payload;
 	ether->smac = endian48(sp->out_ni->mac);
-	ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), 0));
+
+	Map* interfaces = ni_config_get(sp->out_ni, NI_ADDR_IPv4);
+	IPv4Interface* interface = NULL;
+	IPv4Interface* default_interface = NULL;
+	uint32_t default_interface_addr;
+	MapIterator iter;
+	map_iterator_init(&iter, interfaces);
+	while(map_iterator_has_next(&iter)) {
+		MapEntry* entry = map_iterator_next(&iter);
+		interface = entry->data;
+		if((endian32(ip->destination) & interface->netmask) == ((uint32_t)(uint64_t)entry->key & interface->netmask)) {
+			ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), (uint32_t)(uint64_t)entry->key));
+			goto next;
+		} else if(interface->_default == true) {
+			default_interface = interface;
+			default_interface_addr = (uint32_t)(uint64_t)entry->key;
+		}
+
+	}
+
+	if(default_interface)
+		ether->dmac = endian48(arp_get_mac(sp->out_ni, default_interface->gateway, default_interface_addr));
+	else
+		goto error;
+
+next:
 	ether->type = endian16(ETHER_TYPE_IPv4);
 
 	ni_output(sp->out_ni, packet);
@@ -409,12 +440,33 @@ tcp_packet:
 		}
 		
 		ether->smac = endian48(sp->out_ni->mac);
-		ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), 0));
-		ni_output(sp->out_ni, packet);
-		spd_outbound_un_rlock(ni);
-		sad_un_rlock(ni);
 
-		return true;
+		IPv4Interface* interface = ni_ip_get(sp->out_ni, endian32(ip->source));
+		if(!interface) {
+			Map* interfaces = ni_config_get(ni, NI_ADDR_IPv4);
+			MapIterator iter;
+			map_iterator_init(&iter, interfaces);
+			while(map_iterator_has_next(&iter)) {
+				MapEntry* entry = map_iterator_next(&iter);
+				interface = entry->data;
+				if(interface->_default) {
+					ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, (uint32_t)(uint64_t)entry->key));
+					goto next;
+				}
+			}
+
+			ni_free(packet);
+			spd_inbound_un_rlock(ni);
+			sad_un_rlock(ni);
+
+			return true;
+		} else {
+			if((endian32(ip->destination) & interface->netmask) == (endian32(ip->source) & interface->netmask)) {
+				ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), endian32(ip->source)));
+			} else {
+				ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, endian32(ip->source)));
+			}
+		}
 	}
 
 	if(!sa) {
@@ -484,9 +536,34 @@ tcp_packet:
 	ether = (Ether*)(packet->buffer + packet->start);
         ip = (IP*)ether->payload;
 	ether->smac = endian48(sp->out_ni->mac);
-	ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), 0));
-	ether->type = endian16(ETHER_TYPE_IPv4);
+	IPv4Interface* interface = ni_ip_get(sp->out_ni, endian32(ip->source));
+	if(!interface) {
+		Map* interfaces = ni_config_get(ni, NI_ADDR_IPv4);
+		MapIterator iter;
+		map_iterator_init(&iter, interfaces);
+		while(map_iterator_has_next(&iter)) {
+			MapEntry* entry = map_iterator_next(&iter);
+			interface = entry->data;
+			if(interface->_default) {
+				ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, (uint32_t)(uint64_t)entry->key));
+				goto next;
+			}
+		}
 
+		ni_free(packet);
+		spd_inbound_un_rlock(ni);
+		sad_un_rlock(ni);
+
+		return true;
+	} else {
+		if((endian32(ip->destination) & interface->netmask) == (endian32(ip->source) & interface->netmask)) {
+			ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), endian32(ip->source)));
+		} else {
+			ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, endian32(ip->source)));
+		}
+	}
+next:
+	ether->type = endian16(ETHER_TYPE_IPv4);
 	ni_output(sp->out_ni, packet);
 	spd_outbound_un_rlock(ni);
 	sad_un_rlock(ni);
@@ -505,6 +582,12 @@ bool ipsec_process(Packet* packet) {
 
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
 	if(endian16(ether->type) == ETHER_TYPE_IPv4) {
+		//verify IPv4 length
+		IP* ip = (IP*)ether->payload;
+		if(endian16(ip->length) != (packet->end - packet->start - ETHER_LEN)) {
+			return false;
+		}
+
 		if(outbound_process(packet)) {
 			return true;
 		}
