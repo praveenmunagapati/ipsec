@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <util/list.h>
 #include <net/ip.h>
-#include <net/ni.h>
+#include <net/nic.h>
 #include <string.h>
 
 #include "window.h"
@@ -36,7 +36,7 @@ typedef enum {
 } SA_ATTRIBUTES;
 
 typedef struct _SA {
-	NetworkInterface* ni;
+	NIC* nic;
 	uint8_t ipsec_protocol;
 	uint8_t ipsec_mode;
 	uint32_t t_src_ip;
@@ -79,6 +79,6 @@ typedef struct _SA_AH {
 	uint16_t auth_key_length;
 } SA_AH;
 
-SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs);
+SA* sa_alloc(NIC* nic, uint64_t* attrs);
 bool sa_free(SA* sa);
 #endif /* __SA_H__ */

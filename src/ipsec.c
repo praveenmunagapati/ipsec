@@ -294,17 +294,17 @@ static bool inbound_process(Packet* packet) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 
-	NetworkInterface* ni = packet->ni;
-	List* sa_list = list_create(ni->pool);
+	NIC* nic = packet->nic;
+	List* sa_list = list_create(nic->pool);
 	SA* sa = NULL;
-	spd_inbound_rlock(ni);
-	sad_rlock(ni);
+	spd_inbound_rlock(nic);
+	sad_rlock(nic);
 	while((ip->protocol == IP_PROTOCOL_ESP) || (ip->protocol == IP_PROTOCOL_AH)) {
 		switch(ip->protocol) {
 			case IP_PROTOCOL_ESP:
 				;
 				ESP* esp = (ESP*)ip->body;
-				sa = sad_get_sa(ni, endian32(esp->spi), endian32(ip->destination), ip->protocol);
+				sa = sad_get_sa(nic, endian32(esp->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
 					goto error;
 				}
@@ -316,7 +316,7 @@ static bool inbound_process(Packet* packet) {
 			case IP_PROTOCOL_AH:
 				;
 				AH* ah = (AH*)ip->body;
-				sa = sad_get_sa(ni, endian32(ah->spi), endian32(ip->destination), ip->protocol);
+				sa = sad_get_sa(nic, endian32(ah->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
 					goto error;
 				}
@@ -332,7 +332,7 @@ static bool inbound_process(Packet* packet) {
 	}
 
 	// 6. SPD Lookup 
-	SP* sp = spd_get_sp(ni, DIRECTION_IN, ip);
+	SP* sp = spd_get_sp(nic, DIRECTION_IN, ip);
 	if(!sp) {
 		goto error;
 	}
@@ -344,9 +344,9 @@ static bool inbound_process(Packet* packet) {
 
 	ether = (Ether*)(packet->buffer + packet->start);
         ip = (IP*)ether->payload;
-	ether->smac = endian48(sp->out_ni->mac);
+	ether->smac = endian48(sp->out_nic->mac);
 
-	Map* interfaces = ni_config_get(sp->out_ni, NI_ADDR_IPv4);
+	Map* interfaces = nic_config_get(sp->out_nic, NIC_ADDR_IPv4);
 	IPv4Interface* interface = NULL;
 	IPv4Interface* default_interface = NULL;
 	uint32_t default_interface_addr;
@@ -356,7 +356,7 @@ static bool inbound_process(Packet* packet) {
 		MapEntry* entry = map_iterator_next(&iter);
 		interface = entry->data;
 		if((endian32(ip->destination) & interface->netmask) == ((uint32_t)(uint64_t)entry->key & interface->netmask)) {
-			ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), (uint32_t)(uint64_t)entry->key));
+			ether->dmac = endian48(arp_get_mac(sp->out_nic, endian32(ip->destination), (uint32_t)(uint64_t)entry->key));
 			goto next;
 		} else if(interface->_default == true) {
 			default_interface = interface;
@@ -366,31 +366,31 @@ static bool inbound_process(Packet* packet) {
 	}
 
 	if(default_interface)
-		ether->dmac = endian48(arp_get_mac(sp->out_ni, default_interface->gateway, default_interface_addr));
+		ether->dmac = endian48(arp_get_mac(sp->out_nic, default_interface->gateway, default_interface_addr));
 	else
 		goto error;
 
 next:
 	ether->type = endian16(ETHER_TYPE_IPv4);
 
-	ni_output(sp->out_ni, packet);
-	spd_inbound_un_rlock(ni);
-	sad_un_rlock(ni);
+	nic_output(sp->out_nic, packet);
+	spd_inbound_un_rlock(nic);
+	sad_un_rlock(nic);
 	list_destroy(sa_list);
 
 	return true;
 
 error:
-	ni_free(packet);
-	spd_inbound_un_rlock(ni);
-	sad_un_rlock(ni);
+	nic_free(packet);
+	spd_inbound_un_rlock(nic);
+	sad_un_rlock(nic);
 	list_destroy(sa_list);
 
 	return true;
 }
 
 static bool outbound_process(Packet* packet) {
-	NetworkInterface* ni = packet->ni;
+	NIC* nic = packet->nic;
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 	
@@ -398,11 +398,11 @@ static bool outbound_process(Packet* packet) {
 	SP* sp = NULL;
 	SA* sa = NULL;
 
-	spd_outbound_rlock(ni);
-	sad_rlock(ni);
+	spd_outbound_rlock(nic);
+	sad_rlock(nic);
 	if(ip->protocol == IP_PROTOCOL_TCP) { //tcp use socket pointer 
 		TCP* tcp = (TCP*)ip->body;
-		socket = socket_get(ni, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination));
+		socket = socket_get(nic, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination));
 		if(socket) {
 			/*This Packet Is TCP Packet*/
 			sp = socket->sp;
@@ -423,11 +423,11 @@ static bool outbound_process(Packet* packet) {
 	}
 
 	if(!sp)
-		sp = spd_get_sp(packet->ni, DIRECTION_OUT, ip);
+		sp = spd_get_sp(packet->nic, DIRECTION_OUT, ip);
 
 	if(!sp) {
-		spd_outbound_un_rlock(ni);
-		sad_un_rlock(ni);
+		spd_outbound_un_rlock(nic);
+		sad_un_rlock(nic);
 		return false;
 	}
 
@@ -435,36 +435,36 @@ tcp_packet:
 	if(sp->ipsec_action == IPSEC_ACTION_BYPASS) {
 		if((ip->protocol == IP_PROTOCOL_TCP && !socket)) {
 			TCP* tcp = (TCP*)ip->body;
-			socket = socket_create(ni, sp, NULL);
-			socket_add(ni, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination), socket);
+			socket = socket_create(nic, sp, NULL);
+			socket_add(nic, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination), socket);
 		}
 		
-		ether->smac = endian48(sp->out_ni->mac);
+		ether->smac = endian48(sp->out_nic->mac);
 
-		IPv4Interface* interface = ni_ip_get(sp->out_ni, endian32(ip->source));
+		IPv4Interface* interface = nic_ip_get(sp->out_nic, endian32(ip->source));
 		if(!interface) {
-			Map* interfaces = ni_config_get(ni, NI_ADDR_IPv4);
+			Map* interfaces = nic_config_get(nic, NIC_ADDR_IPv4);
 			MapIterator iter;
 			map_iterator_init(&iter, interfaces);
 			while(map_iterator_has_next(&iter)) {
 				MapEntry* entry = map_iterator_next(&iter);
 				interface = entry->data;
 				if(interface->_default) {
-					ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, (uint32_t)(uint64_t)entry->key));
+					ether->dmac = endian48(arp_get_mac(sp->out_nic, interface->gateway, (uint32_t)(uint64_t)entry->key));
 					goto next;
 				}
 			}
 
-			ni_free(packet);
-			spd_inbound_un_rlock(ni);
-			sad_un_rlock(ni);
+			nic_free(packet);
+			spd_inbound_un_rlock(nic);
+			sad_un_rlock(nic);
 
 			return true;
 		} else {
 			if((endian32(ip->destination) & interface->netmask) == (endian32(ip->source) & interface->netmask)) {
-				ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), endian32(ip->source)));
+				ether->dmac = endian48(arp_get_mac(sp->out_nic, endian32(ip->destination), endian32(ip->source)));
 			} else {
-				ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, endian32(ip->source)));
+				ether->dmac = endian48(arp_get_mac(sp->out_nic, interface->gateway, endian32(ip->source)));
 			}
 		}
 	}
@@ -482,17 +482,17 @@ tcp_packet:
 	}
 
 	if(!sa) {
-		ni_free(packet);
-		spd_outbound_un_rlock(ni);
-		sad_un_rlock(ni);
+		nic_free(packet);
+		spd_outbound_un_rlock(nic);
+		sad_un_rlock(nic);
 
 		return true;
 	}
 
 	if(ip->protocol == IP_PROTOCOL_TCP) {
 		TCP* tcp = (TCP*)ip->body;
-		Socket* socket = socket_create(ni, sp, sa);
-		socket_add(ni, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination), socket);
+		Socket* socket = socket_create(nic, sp, sa);
+		socket_add(nic, endian32(ip->source), endian16(tcp->source), endian32(ip->destination), endian16(tcp->destination), socket);
 	}
 
 	ListIterator iter;
@@ -501,9 +501,9 @@ tcp_packet:
 		Content* content = list_iterator_next(&iter);
 
 		if(!sa) {
-			ni_free(packet);
-			spd_outbound_un_rlock(ni);
-			sad_un_rlock(ni);
+			nic_free(packet);
+			spd_outbound_un_rlock(nic);
+			sad_un_rlock(nic);
 
 			return true;
 		}
@@ -511,9 +511,9 @@ tcp_packet:
 		switch(content->ipsec_protocol) {
 			case IP_PROTOCOL_ESP:
 				if(!ipsec_encrypt(packet, content, sa)) {
-					ni_free(packet);
-					spd_outbound_un_rlock(ni);
-					sad_un_rlock(ni);
+					nic_free(packet);
+					spd_outbound_un_rlock(nic);
+					sad_un_rlock(nic);
 
 					return true;
 				}
@@ -521,9 +521,9 @@ tcp_packet:
 
 			case IP_PROTOCOL_AH:
 				if(!ipsec_auth(packet, content, sa)) {
-					ni_free(packet);
-					spd_outbound_un_rlock(ni);
-					sad_un_rlock(ni);
+					nic_free(packet);
+					spd_outbound_un_rlock(nic);
+					sad_un_rlock(nic);
 
 					return true;
 				}
@@ -535,38 +535,38 @@ tcp_packet:
 
 	ether = (Ether*)(packet->buffer + packet->start);
         ip = (IP*)ether->payload;
-	ether->smac = endian48(sp->out_ni->mac);
-	IPv4Interface* interface = ni_ip_get(sp->out_ni, endian32(ip->source));
+	ether->smac = endian48(sp->out_nic->mac);
+	IPv4Interface* interface = nic_ip_get(sp->out_nic, endian32(ip->source));
 	if(!interface) {
-		Map* interfaces = ni_config_get(ni, NI_ADDR_IPv4);
+		Map* interfaces = nic_config_get(nic, NIC_ADDR_IPv4);
 		MapIterator iter;
 		map_iterator_init(&iter, interfaces);
 		while(map_iterator_has_next(&iter)) {
 			MapEntry* entry = map_iterator_next(&iter);
 			interface = entry->data;
 			if(interface->_default) {
-				ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, (uint32_t)(uint64_t)entry->key));
+				ether->dmac = endian48(arp_get_mac(sp->out_nic, interface->gateway, (uint32_t)(uint64_t)entry->key));
 				goto next;
 			}
 		}
 
-		ni_free(packet);
-		spd_inbound_un_rlock(ni);
-		sad_un_rlock(ni);
+		nic_free(packet);
+		spd_inbound_un_rlock(nic);
+		sad_un_rlock(nic);
 
 		return true;
 	} else {
 		if((endian32(ip->destination) & interface->netmask) == (endian32(ip->source) & interface->netmask)) {
-			ether->dmac = endian48(arp_get_mac(sp->out_ni, endian32(ip->destination), endian32(ip->source)));
+			ether->dmac = endian48(arp_get_mac(sp->out_nic, endian32(ip->destination), endian32(ip->source)));
 		} else {
-			ether->dmac = endian48(arp_get_mac(sp->out_ni, interface->gateway, endian32(ip->source)));
+			ether->dmac = endian48(arp_get_mac(sp->out_nic, interface->gateway, endian32(ip->source)));
 		}
 	}
 next:
 	ether->type = endian16(ETHER_TYPE_IPv4);
-	ni_output(sp->out_ni, packet);
-	spd_outbound_un_rlock(ni);
-	sad_un_rlock(ni);
+	nic_output(sp->out_nic, packet);
+	spd_outbound_un_rlock(nic);
+	sad_un_rlock(nic);
 
 	return true;
 }

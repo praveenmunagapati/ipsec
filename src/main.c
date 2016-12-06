@@ -7,7 +7,7 @@
 #undef DONT_MAKE_WRAPPER
 #include <thread.h>
 #include <readline.h>
-#include <net/ni.h>
+#include <net/nic.h>
 #include <net/packet.h>
 #include <net/ether.h>
 #include <net/arp.h>
@@ -197,7 +197,7 @@ static bool parse_addr(char* argv, uint32_t* address) {
 	return true;
 }
 
-static bool parse_key(NetworkInterface* ni, char* argv, uint64_t** key, uint16_t key_length) {
+static bool parse_key(NIC* ni, char* argv, uint64_t** key, uint16_t key_length) {
 	if(strncmp("0x", argv, 2)) {
 		return false;
 	}
@@ -255,7 +255,7 @@ void key_dump(uint64_t* _key, uint16_t key_length) {
 	}
 }
 
-static NetworkInterface* parse_ni(char* argv) {
+static NIC* parse_ni(char* argv) {
 	if(strncmp(argv, "eth", 3)) {
 		return NULL;
 	}
@@ -270,11 +270,11 @@ static NetworkInterface* parse_ni(char* argv) {
 		return NULL;
 	}
 
-	if(index >= ni_count()) {
+	if(index >= nic_count()) {
 		return NULL;
 	}
 
-	return ni_get(index);
+	return nic_get(index);
 }
 
 static bool parse_addr_mask_port(char* argv, uint32_t* addr, uint32_t* mask, uint16_t* port) {
@@ -333,10 +333,10 @@ static bool parse_addr_mask_port(char* argv, uint32_t* addr, uint32_t* mask, uin
 
 static int cmd_ip(int argc, char** argv, void(*callback)(char* result, int exit_status)) {
 	if(argc == 1) {
-		int count = ni_count();
+		int count = nic_count();
 		for(int i = 0; i < count; i++) {
-			NetworkInterface* ni = ni_get(i);
-			Map* interfaces = ni_config_get(ni, NI_ADDR_IPv4);
+			NIC* ni = nic_get(i);
+			Map* interfaces = nic_config_get(ni, NIC_ADDR_IPv4);
 			MapIterator iter;
 			map_iterator_init(&iter, interfaces);
 			while(map_iterator_has_next(&iter)) {
@@ -354,7 +354,7 @@ static int cmd_ip(int argc, char** argv, void(*callback)(char* result, int exit_
 			printf("Wrong arguments\n");
 			return -2;
 		}
-		NetworkInterface* ni = parse_ni(argv[2]);
+		NIC* ni = parse_ni(argv[2]);
 		if(!ni) {
 			printf("Netowrk Interface number wrong\n");
 			return -2;
@@ -364,14 +364,14 @@ static int cmd_ip(int argc, char** argv, void(*callback)(char* result, int exit_
 		if(!parse_addr(argv[3], &addr))
 			return -3;
 
-		if(!ni_ip_add(ni, addr))
+		if(!nic_ip_add(ni, addr))
 			return -3;
 	} else if(!strcmp("remove", argv[1])) {
 		if(argc != 4) {
 			printf("Wrong arguments\n");
 			return -2;
 		}
-		NetworkInterface* ni = parse_ni(argv[2]);
+		NIC* ni = parse_ni(argv[2]);
 		if(!ni) {
 			printf("Netowrk Interface number wrong\n");
 			return -2;
@@ -381,7 +381,7 @@ static int cmd_ip(int argc, char** argv, void(*callback)(char* result, int exit_
 		if(!parse_addr(argv[3], &addr))
 			return -3;
 
-		if(!ni_ip_remove(ni, addr)) {
+		if(!nic_ip_remove(ni, addr)) {
 			printf("Can'nt found address\n");
 			return -3;
 		}
@@ -398,7 +398,7 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 	}
 
 	if(!strcmp("add", argv[1])) {
-		NetworkInterface* ni = parse_ni(argv[2]);
+		NIC* ni = parse_ni(argv[2]);
 		if(!ni) {
 			printf("Netowrk Interface number wrong\n");
 			return -2;
@@ -408,7 +408,7 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 		if(!parse_addr(argv[3], &addr))
 			return -3;
 
-		IPv4Interface* interface = ni_ip_get(ni, addr);
+		IPv4Interface* interface = nic_ip_get(ni, addr);
 		if(!interface)
 			return -3;
 
@@ -448,7 +448,7 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 			printf("Wrong arguments\n");
 			return -2;
 		}
-		NetworkInterface* ni = parse_ni(argv[2]);
+		NIC* ni = parse_ni(argv[2]);
 		if(!ni) {
 			printf("Netowrk Interface number wrong\n");
 			return -2;
@@ -458,7 +458,7 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 		if(!parse_addr(argv[3], &addr))
 			return -3;
 
-		if(!ni_ip_remove(ni, addr)) {
+		if(!nic_ip_remove(ni, addr)) {
 			printf("Can'nt found address\n");
 			return -3;
 		}
@@ -473,7 +473,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 	for(int i = 1; i < argc; i++) {
 		if(!strcmp(argv[i], "add")) {
 			i++;
-			NetworkInterface* ni = parse_ni(argv[i]);
+			NIC* ni = parse_ni(argv[i]);
 			if(!ni) {
 				printf("Can'nt found Network Interface\n");
 			}
@@ -904,7 +904,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 		} else if(!strcmp(argv[i], "remove")) {
 			i++;
 
-			NetworkInterface* ni = parse_ni(argv[i]);
+			NIC* ni = parse_ni(argv[i]);
 			if(!ni) {
 				printf("Can'nt found Network Interface\n");
 			}
@@ -957,7 +957,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 			return 0;
 		} else if(!strcmp(argv[i], "list")) {
 			printf("********SAD********\n");
-			void dump_sad(uint16_t ni_index) {
+			void dump_sad(uint16_t nic_index) {
 				void dump_ipsec_mode(uint8_t ipsec_mode) {
 					switch(ipsec_mode) {
 						case IPSEC_MODE_TUNNEL:
@@ -980,7 +980,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 					}
 				}
 
-				NetworkInterface* ni = ni_get(ni_index);
+				NIC* ni = nic_get(nic_index);
 				if(!ni)
 					return;
 
@@ -996,7 +996,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 					list_iterator_init(&_iter, dest_list);
 					while(list_iterator_has_next(&_iter)) {
 						SA* sa = list_iterator_next(&_iter);
-						printf("eth%d\t", ni_index);
+						printf("eth%d\t", nic_index);
 						printf("mode: ");
 						dump_ipsec_mode(sa->ipsec_mode);
 						if(sa->ipsec_mode == IPSEC_MODE_TUNNEL) {
@@ -1043,7 +1043,7 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 
 			i++;
 			if(argc == 2) {
-				uint16_t count = ni_count();
+				uint16_t count = nic_count();
 				for(int i = 0; i < count; i++) {
 					dump_sad(i);
 				}
@@ -1057,8 +1057,8 @@ static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_
 					return -2;
 				}
 
-				uint16_t ni_index = parse_uint16(argv[i] + 3);
-				dump_sad(ni_index);
+				uint16_t nic_index = parse_uint16(argv[i] + 3);
+				dump_sad(nic_index);
 			}
 			return 0;
 		} else {
@@ -1074,7 +1074,7 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 	int i = 1;
 	if(!strcmp(argv[i], "add")) {
 		i++;
-		NetworkInterface* ni = parse_ni(argv[i]);
+		NIC* ni = parse_ni(argv[i]);
 		if(!ni) {
 			printf("Can'nt found Network Interface\n");
 		}
@@ -1097,7 +1097,7 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 		uint8_t ipsec_action = IPSEC_ACTION_BYPASS;
 		uint8_t index = 0;
 
-		NetworkInterface* out_ni = NULL;
+		NIC* out_nic = NULL;
 		for(; i < argc; i++) {
 			if(!strcmp(argv[i], "-p")) { //protocol
 				i++;
@@ -1165,8 +1165,8 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 				index = parse_uint8(argv[i]);
 			} else if(!strcmp(argv[i], "-o")) {
 				i++;
-				out_ni = parse_ni(argv[i]);
-				if(!out_ni) {
+				out_nic = parse_ni(argv[i]);
+				if(!out_nic) {
 					printf("Can'nt found Out Network Interface\n");
 					return i;
 				}
@@ -1187,7 +1187,7 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 			SP_SOURCE_PORT, src_port,
 			SP_IS_SOURCE_PORT_SA_SHARE, is_src_port_sa_share,
 
-			SP_OUT_NI, (uint64_t)out_ni,
+			SP_OUT_NI, (uint64_t)out_nic,
 			SP_DESTINATION_IP, dest_ip,
 			SP_IS_DESTINATION_IP_SA_SHARE, is_dest_ip_sa_share,
 			SP_DESTINATION_NET_MASK, dest_mask,
@@ -1214,7 +1214,7 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 		return 0;
 	} else if(!strcmp(argv[i], "remove")) {
 		i++;
-		NetworkInterface* ni = parse_ni(argv[i]);
+		NIC* ni = parse_ni(argv[i]);
 		if(!ni) {
 			printf("Can'nt found Network Interface\n");
 		}
@@ -1282,10 +1282,10 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 			}
 		}
 
-		void dump_ni(NetworkInterface* ni) {
-			uint16_t count = ni_count();
+		void dump_ni(NIC* ni) {
+			uint16_t count = nic_count();
 			for(int i = 0; i < count; i++) {
-				if(ni == ni_get(i))
+				if(ni == nic_get(i))
 					printf("eth%d", i);
 			}
 		}
@@ -1323,8 +1323,8 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 			}
 		}
 
-		void dump_spd(uint16_t ni_index, uint8_t direction) {
-			NetworkInterface* ni = ni_get(ni_index);
+		void dump_spd(uint16_t nic_index, uint8_t direction) {
+			NIC* ni = nic_get(nic_index);
 			if(!ni)
 				return;
 
@@ -1333,8 +1333,8 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 				list_iterator_init(&iter, database);
 				while(list_iterator_has_next(&iter)) {
 					SP* sp = list_iterator_next(&iter);
-					printf("eth%d -> ", ni_index);
-					dump_ni(sp->out_ni);
+					printf("eth%d -> ", nic_index);
+					dump_ni(sp->out_nic);
 					printf("\t");
 					dump_ipsec_action(sp->ipsec_action);
 					printf("/");
@@ -1418,7 +1418,7 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 			}
 			printf("\n");
 		}
-		uint16_t count = ni_count();
+		uint16_t count = nic_count();
 		if(argc == 2) {
 			for(int i = 0; i < count; i++) {
 				dump_spd(i, DIRECTION_OUT);
@@ -1435,9 +1435,9 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 				return -2;
 			}
 
-			uint16_t ni_index = parse_uint16(argv[i] + 3);
-			dump_spd(ni_index, DIRECTION_OUT);
-			dump_spd(ni_index, DIRECTION_IN);
+			uint16_t nic_index = parse_uint16(argv[i] + 3);
+			dump_spd(nic_index, DIRECTION_OUT);
+			dump_spd(nic_index, DIRECTION_IN);
 
 		} else if(argc == 4) {
 			i++;
@@ -1450,12 +1450,12 @@ static int cmd_sp(int argc, char** argv, void(*callback)(char* result, int exit_
 				return -2;
 			}
 
-			uint16_t ni_index = parse_uint16(argv[i] + 3);
+			uint16_t nic_index = parse_uint16(argv[i] + 3);
 			i++;
 			if(!strcmp(argv[i], "in")) {
-				dump_spd(ni_index, DIRECTION_IN);
+				dump_spd(nic_index, DIRECTION_IN);
 			} else if(!strcmp(argv[i], "out")){
-				dump_spd(ni_index, DIRECTION_OUT);
+				dump_spd(nic_index, DIRECTION_OUT);
 			} else {
 				printf("Invalid Direction\n");
 				return i;
@@ -1478,7 +1478,7 @@ static int cmd_content(int argc, char** argv, void(*callback)(char* result, int 
 	for(int i = 1; i < argc; i++) {
 		if(!strcmp(argv[i], "add")) {
 			i++;
-			NetworkInterface* ni = parse_ni(argv[i]);
+			NIC* ni = parse_ni(argv[i]);
 			if(!ni) {
 				printf("Can'nt found Network Interface\n");
 			}
@@ -1718,17 +1718,17 @@ int main(int argc, char** argv) {
 	}
 	thread_barrior();
 
-	uint32_t count = ni_count();
+	uint32_t count = nic_count();
 	while(is_continue) {
 		for(int i = 0; i < count; i++) {
-			NetworkInterface* ni = ni_get(i);
-			if(ni_has_input(ni)) {
-				Packet* packet = ni_input(ni);
+			NIC* ni = nic_get(i);
+			if(nic_has_input(ni)) {
+				Packet* packet = nic_input(ni);
 				if(!packet)
 					continue;
 
 				if(!ipsec_process(packet)) {
-					ni_free(packet);
+					nic_free(packet);
 				}
 			}
 		}

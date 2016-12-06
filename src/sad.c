@@ -7,7 +7,7 @@
 #define DONT_MAKE_WRAPPER
 #include <_malloc.h>
 #undef DONT_MAKE_WRAPPER
-#include <net/ni.h>
+#include <net/nic.h>
 #include <net/ip.h>
 #include <net/ether.h>
 #include <openssl/des.h>
@@ -25,28 +25,28 @@ bool sad_ginit() {
 	if(id != 0)
 		return false;
 
-	int count = ni_count();
+	int count = nic_count();
 
 	for(int i = 0; i < count; i++) {
-		NetworkInterface* ni = ni_get(i);
-		SAD* sad = __malloc(sizeof(SAD), ni->pool);
+		NIC* nic = nic_get(i);
+		SAD* sad = __malloc(sizeof(SAD), nic->pool);
 		if(!sad) {
 			printf("Can't create SAD\n");
 			goto fail;
 		}
-		sad->database = map_create(16, NULL, NULL, ni->pool);
+		sad->database = map_create(16, NULL, NULL, nic->pool);
 		if(!sad->database) {
 			printf("Can't create SAD Map\n");
-			__free(sad, ni->pool);
+			__free(sad, nic->pool);
 
 			goto fail;
 		}
 		rwlock_init(&sad->rwlock);
 
-		if(!ni_config_put(ni, IPSEC_SAD, sad)) {
+		if(!nic_config_put(nic, IPSEC_SAD, sad)) {
 			printf("Can't add SAD\n");
 			map_destroy(sad->database);
-			__free(sad, ni->pool);
+			__free(sad, nic->pool);
 			goto fail;
 		}
 	}
@@ -55,14 +55,14 @@ bool sad_ginit() {
 
 fail:
 	for(int i = 0; i < count; i++) {
-		NetworkInterface* ni = ni_get(i);
-		SAD* sad = ni_config_get(ni, IPSEC_SAD);
+		NIC* nic = nic_get(i);
+		SAD* sad = nic_config_get(nic, IPSEC_SAD);
 		if(!sad) {
 			continue;
 		}
 		if(sad->database)
 			map_destroy(sad->database);
-		ni_config_remove(ni, IPSEC_SAD);
+		nic_config_remove(nic, IPSEC_SAD);
 	}
 
 	return false;
@@ -73,11 +73,11 @@ void sad_gdestroy() {
 	if(id != 0)
 		return;
 
-	int count = ni_count();
+	int count = nic_count();
 
 	for(int i = 0; i < count; i++) {
-		NetworkInterface* ni = ni_get(i);
-		SAD* sad = ni_config_get(ni, IPSEC_SAD);
+		NIC* nic = nic_get(i);
+		SAD* sad = nic_config_get(nic, IPSEC_SAD);
 		if(!sad) {
 			continue;
 		}
@@ -92,16 +92,16 @@ void sad_gdestroy() {
 			map_destroy(sad->database);
 		}
 
-		ni_config_remove(ni, IPSEC_SAD);
+		nic_config_remove(nic, IPSEC_SAD);
 	}
 }
 
-SAD* sad_get(NetworkInterface* ni) {
-	return  ni_config_get(ni, IPSEC_SAD);
+SAD* sad_get(NIC* nic) {
+	return  nic_config_get(nic, IPSEC_SAD);
 }
 
-void sad_remove_all(NetworkInterface* ni) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+void sad_remove_all(NIC* nic) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	MapIterator iter;
 
@@ -122,11 +122,11 @@ void sad_remove_all(NetworkInterface* ni) {
 		map_iterator_remove(&iter);
 	}
 	map_destroy(sad->database);
-	ni_config_remove(ni, IPSEC_SAD);
+	nic_config_remove(nic, IPSEC_SAD);
 }
 
-SA* sad_get_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t protocol) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+SA* sad_get_sa(NIC* nic, uint32_t spi, uint32_t dest_ip, uint8_t protocol) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	uint64_t key = ((uint64_t)protocol << 32) | (uint64_t)spi;
 	List* dest_list = map_get(sad->database, (void*)key);
@@ -160,14 +160,14 @@ SA* sad_get_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t pro
 	return sa;
 }
 
-bool sad_add_sa(NetworkInterface* ni, SA* sa) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+bool sad_add_sa(NIC* nic, SA* sa) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	uint64_t key = ((uint64_t)sa->ipsec_protocol << 32) | (uint64_t)sa->spi; /* Protocol(8) + SPI(32)*/
 
 	List* dest_list = map_get(sad->database, (void*)key);
 	if(!dest_list) {
-		dest_list = list_create(ni->pool);
+		dest_list = list_create(nic->pool);
 		if(!dest_list) {
 			//printf("Can't create list\n");
 			goto protocol_map_create_fail;
@@ -197,8 +197,8 @@ protocol_map_create_fail:
 	return false;
 }
 
-bool sad_remove_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t ipsec_protocol) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+bool sad_remove_sa(NIC* nic, uint32_t spi, uint32_t dest_ip, uint8_t ipsec_protocol) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	uint64_t key = ((uint64_t)ipsec_protocol << 32) | (uint64_t)spi; /* Protocol(8) + SPI(32)*/
 
@@ -236,26 +236,26 @@ bool sad_remove_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t
 }
 
 /* SAD Read & Write Lock */
-inline void sad_rlock(NetworkInterface* ni) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+inline void sad_rlock(NIC* nic) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	rwlock_read_lock(&sad->rwlock);
 }
 
-inline void sad_un_rlock(NetworkInterface* ni) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+inline void sad_un_rlock(NIC* nic) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	rwlock_read_unlock(&sad->rwlock);
 }
 
-inline void sad_wlock(NetworkInterface* ni) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+inline void sad_wlock(NIC* nic) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	rwlock_write_lock(&sad->rwlock);
 }
 
-inline void sad_un_wlock(NetworkInterface* ni) {
-	SAD* sad = ni_config_get(ni, IPSEC_SAD);
+inline void sad_un_wlock(NIC* nic) {
+	SAD* sad = nic_config_get(nic, IPSEC_SAD);
 
 	rwlock_write_unlock(&sad->rwlock);
 }

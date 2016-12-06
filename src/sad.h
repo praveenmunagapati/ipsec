@@ -15,14 +15,14 @@ typedef struct _SAD {
 
 bool sad_ginit();
 void sad_gdestroy();
-SAD* sad_get(NetworkInterface* ni);
-void sad_remove_all(NetworkInterface* ni);
-SA* sad_get_sa(NetworkInterface* ni, uint32_t spi, uint32_t dst_ip, uint8_t protocol);
-bool sad_add_sa(NetworkInterface* ni, SA* sa);
-bool sad_remove_sa(NetworkInterface* ni, uint32_t spi, uint32_t dest_ip, uint8_t protocol);
+SAD* sad_get(NIC* nic);
+void sad_remove_all(NIC* nic);
+SA* sad_get_sa(NIC* nic, uint32_t spi, uint32_t dst_ip, uint8_t protocol);
+bool sad_add_sa(NIC* nic, SA* sa);
+bool sad_remove_sa(NIC* nic, uint32_t spi, uint32_t dest_ip, uint8_t protocol);
 
-void sad_rlock(NetworkInterface* ni);
-void sad_un_rlock(NetworkInterface* ni); 
-void sad_wlock(NetworkInterface* ni);
-void sad_un_wlock(NetworkInterface* ni); 
+void sad_rlock(NIC* nic);
+void sad_un_rlock(NIC* nic); 
+void sad_wlock(NIC* nic);
+void sad_un_wlock(NIC* nic); 
 #endif

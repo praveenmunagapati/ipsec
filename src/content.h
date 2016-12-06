@@ -1,7 +1,7 @@
 #ifndef __CONTENT_H__
 #define __CONTENT_H__
 #include <stdbool.h>
-#include <net/ni.h>
+#include <net/nic.h>
 #include "crypto.h"
 #include "auth.h"
 // Mode
@@ -16,7 +16,7 @@ typedef enum {
 } CONTENT_ATTRIBUTES;
 
 typedef struct _Content{
-	NetworkInterface* ni;
+	NIC* nic;
 	uint8_t ipsec_protocol;//rename ipsec_protocol
 	uint8_t ipsec_mode; //rename ipsec_mode
 } Content;
@@ -55,6 +55,6 @@ typedef struct _Content_ESP_Tunnel {
 	uint32_t t_dest_ip;
 } Content_ESP_Tunnel;
 
-Content* content_alloc(NetworkInterface* ni, uint64_t* attrs);
+Content* content_alloc(NIC* nic, uint64_t* attrs);
 void content_free(Content* content);
 #endif /*__CONTENT_H__*/

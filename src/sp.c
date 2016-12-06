@@ -9,23 +9,23 @@
 #include "sad.h"
 #include "content.h"
 
-SP* sp_alloc(NetworkInterface* ni, uint64_t* attrs) {
-        SP* sp = (SP*)__malloc(sizeof(SP), ni->pool);
+SP* sp_alloc(NIC* nic, uint64_t* attrs) {
+        SP* sp = (SP*)__malloc(sizeof(SP), nic->pool);
 	if(sp == NULL) {
 		printf("Can'nt allocate SP\n");
 		return NULL;
 	}
 	memset(sp, 0, sizeof(SP));
-	sp->ni = ni;
-	sp->contents = list_create(ni->pool);
+	sp->nic = nic;
+	sp->contents = list_create(nic->pool);
 	if(!sp->contents) { 
-		__free(sp, ni->pool);
+		__free(sp, nic->pool);
 		return NULL;
 	}
-	sp->sa_list = list_create(ni->pool);
+	sp->sa_list = list_create(nic->pool);
 	if(!sp->sa_list) {
 		list_destroy(sp->contents);
-		__free(sp, ni->pool);
+		__free(sp, nic->pool);
 		return NULL;
 	}
 
@@ -56,7 +56,7 @@ SP* sp_alloc(NetworkInterface* ni, uint64_t* attrs) {
 				sp->is_src_port_sa_share = attrs[i * 2 + 1];
 				break;
 			case SP_OUT_NI:
-				sp->out_ni = (NetworkInterface*)attrs[i * 2 + 1];
+				sp->out_nic = (NIC*)attrs[i * 2 + 1];
 				break;
 			case SP_DESTINATION_IP:
 				sp->dest_ip = attrs[i * 2 + 1];
@@ -95,7 +95,7 @@ bool sp_free(SP* sp) {
 
 	list_destroy(sp->contents);
 
-	__free(sp, sp->ni->pool);
+	__free(sp, sp->nic->pool);
 
 	return true;
 }
@@ -242,7 +242,7 @@ SA* sp_find_sa(SP* sp, IP* ip) {
 	SA* first_sa = NULL;
 	SA* pre_sa = NULL;
 
-	SAD* sad = sad_get(sp->ni);
+	SAD* sad = sad_get(sp->nic);
 
 	ListIterator iter;
 	list_iterator_init(&iter, sp->contents);

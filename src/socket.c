@@ -1,4 +1,4 @@
-#include <net/ni.h>
+#include <net/nic.h>
 #include <util/map.h>
 #include <malloc.h>
 #include <thread.h>
@@ -22,10 +22,10 @@ bool socket_ginit() {
 	if(id != 0)
 		return false;
 
-	int count = ni_count();
+	int count = nic_count();
 	for(int i = 0; i < count; i++) {
-		NetworkInterface* ni = ni_get(i);
-		Sockets* sockets = __malloc(sizeof(Sockets), ni->pool);
+		NIC* nic = nic_get(i);
+		Sockets* sockets = __malloc(sizeof(Sockets), nic->pool);
 		if(!sockets) {
 			printf("Can't create sockets\n");
 			goto fail;
@@ -33,17 +33,17 @@ bool socket_ginit() {
 		memset(sockets, 0, sizeof(Sockets));
 		rwlock_init(&(sockets->rwlock));
 
-		sockets->socket_table = map_create(16, NULL, NULL, ni->pool);
+		sockets->socket_table = map_create(16, NULL, NULL, nic->pool);
 		if(!sockets->socket_table) {
 			printf("Can't create socket table\n");
-			__free(sockets, ni->pool);
+			__free(sockets, nic->pool);
 			goto fail;
 		}
 
-		if(!ni_config_put(ni, SOCKETS, sockets)) {
+		if(!nic_config_put(nic, SOCKETS, sockets)) {
 			printf("Can't add sockets\n");
 			map_destroy(sockets->socket_table);
-			__free(sockets, ni->pool);
+			__free(sockets, nic->pool);
 			goto fail;
 		}
 	}
@@ -52,8 +52,8 @@ bool socket_ginit() {
 
 fail:
 	for(int i = 0; i < count; i++) {
-		NetworkInterface* ni = ni_get(i);
-		Sockets* sockets = ni_config_remove(ni, SOCKETS);
+		NIC* nic = nic_get(i);
+		Sockets* sockets = nic_config_remove(nic, SOCKETS);
 		if(!sockets)
 			continue;
 
@@ -62,7 +62,7 @@ fail:
 		}
 
 		if(sockets)
-			__free(sockets, ni->pool);
+			__free(sockets, nic->pool);
 
 	}
 
@@ -74,10 +74,10 @@ void socket_gdestroy() {
 	if(id != 0)
 		return;
 
-	int count = ni_count();
+	int count = nic_count();
 	for(int i = 0; i < count; i++) {
-		NetworkInterface* ni = ni_get(i);
-		Sockets* sockets = ni_config_remove(ni, SOCKETS);
+		NIC* nic = nic_get(i);
+		Sockets* sockets = nic_config_remove(nic, SOCKETS);
 		if(!sockets)
 			continue;
 
@@ -86,18 +86,18 @@ void socket_gdestroy() {
 		while(map_iterator_has_next(&iter)) {
 			MapEntry* entry = map_iterator_next(&iter);
 			Socket* socket = entry->data;
-			socket_delete(ni, socket);
+			socket_delete(nic, socket);
 		}
 		map_destroy(sockets->socket_table);
 
 		if(sockets)
-			__free(sockets, ni->pool);
+			__free(sockets, nic->pool);
 
 	}
 }
 
-Socket* socket_create(NetworkInterface* ni, SP* sp, SA* sa) {
-	Socket* socket = __malloc(sizeof(socket), ni->pool);
+Socket* socket_create(NIC* nic, SP* sp, SA* sa) {
+	Socket* socket = __malloc(sizeof(socket), nic->pool);
 	if(!socket)
 		return NULL;
 
@@ -110,19 +110,19 @@ Socket* socket_create(NetworkInterface* ni, SP* sp, SA* sa) {
 	return socket;
 }
 
-void socket_delete(NetworkInterface* ni, Socket* socket) {
-	__free(socket, ni->pool);
+void socket_delete(NIC* nic, Socket* socket) {
+	__free(socket, nic->pool);
 }
 
-bool socket_add(NetworkInterface* ni, uint32_t src_ip, uint16_t src_port, uint32_t dest_ip, uint16_t dest_port, Socket* socket) {
-	Sockets* sockets = ni_config_get(ni, SOCKETS);
+bool socket_add(NIC* nic, uint32_t src_ip, uint16_t src_port, uint32_t dest_ip, uint16_t dest_port, Socket* socket) {
+	Sockets* sockets = nic_config_get(nic, SOCKETS);
 	Map* socket_table = sockets->socket_table;
 
 	uint64_t src_key = (uint64_t)src_ip << 32 | (uint64_t)src_port;
 	Map* _socket_table = map_get(socket_table, (void*)src_key);
 	rwlock_write_lock(&sockets->rwlock);
 	if(!_socket_table) {
-		_socket_table = map_create(8, NULL, NULL, ni->pool);
+		_socket_table = map_create(8, NULL, NULL, nic->pool);
 		if(!_socket_table) {
 			rwlock_write_unlock(&sockets->rwlock);
 
@@ -152,8 +152,8 @@ bool socket_add(NetworkInterface* ni, uint32_t src_ip, uint16_t src_port, uint32
 	return true;
 }
 
-Socket* socket_remove(NetworkInterface* ni, uint32_t src_ip, uint16_t src_port, uint32_t dest_ip, uint16_t dest_port) {
-	Sockets* sockets = ni_config_get(ni, SOCKETS);
+Socket* socket_remove(NIC* nic, uint32_t src_ip, uint16_t src_port, uint32_t dest_ip, uint16_t dest_port) {
+	Sockets* sockets = nic_config_get(nic, SOCKETS);
 	Map* socket_table = sockets->socket_table;
 
 	uint64_t src_key = (uint64_t)src_ip << 32 | (uint64_t)src_port;
@@ -180,8 +180,8 @@ Socket* socket_remove(NetworkInterface* ni, uint32_t src_ip, uint16_t src_port, 
 	return socket;
 }
 
-Socket* socket_get(NetworkInterface* ni, uint32_t src_ip, uint16_t src_port, uint32_t dest_ip, uint16_t dest_port) {
-	Sockets* sockets = ni_config_get(ni, SOCKETS);
+Socket* socket_get(NIC* nic, uint32_t src_ip, uint16_t src_port, uint32_t dest_ip, uint16_t dest_port) {
+	Sockets* sockets = nic_config_get(nic, SOCKETS);
 	Map* socket_table = sockets->socket_table;
 
 	rwlock_read_lock(&sockets->rwlock);

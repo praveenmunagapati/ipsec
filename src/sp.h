@@ -51,8 +51,8 @@ typedef enum {
 } SP_ATTRIBUTES;
 
 typedef struct _SP{
-	NetworkInterface* ni;
-	NetworkInterface* out_ni;
+	NIC* nic;
+	NIC* out_nic;
 	uint8_t direction;
 	uint8_t ipsec_action;
 
@@ -76,7 +76,7 @@ typedef struct _SP{
 	List* contents;
 } SP;
 
-SP* sp_alloc(NetworkInterface* ni, uint64_t* attrs);
+SP* sp_alloc(NIC* nic, uint64_t* attrs);
 bool sp_free(SP* sp);
 bool sp_add_content(SP* sp, Content* content, int priority);
 bool sp_remove_content(SP* sp, int index);

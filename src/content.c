@@ -2,15 +2,15 @@
 #define DONT_MAKE_WRAPPER
 #include <_malloc.h>
 #undef DONT_MAKE_WRAPPER
-#include <net/ni.h>
+#include <net/nic.h>
 
 #include "ipsec.h"
 #include "content.h"
 
-Content* content_alloc(NetworkInterface* ni, uint64_t* attrs) {
+Content* content_alloc(NIC* nic, uint64_t* attrs) {
 	uint64_t get_value(uint64_t key) {
 		int i = 0;
-		while(attrs[i * 2] != NI_NONE) {
+		while(attrs[i * 2] != NIC_NONE) {
 			if(attrs[i * 2] == key)
 				return attrs[i * 2 + 1];
 
@@ -62,20 +62,20 @@ Content* content_alloc(NetworkInterface* ni, uint64_t* attrs) {
 		case IP_PROTOCOL_ESP:
 			switch(mode) {
 				case IPSEC_MODE_TUNNEL:
-					content = __malloc(sizeof(Content_ESP_Tunnel), ni->pool);
+					content = __malloc(sizeof(Content_ESP_Tunnel), nic->pool);
 					break;
 				case IPSEC_MODE_TRANSPORT:
-					content = __malloc(sizeof(Content_ESP_Transport), ni->pool);
+					content = __malloc(sizeof(Content_ESP_Transport), nic->pool);
 					break;
 			}
 			break;
 		case IP_PROTOCOL_AH:
 			switch(mode) {
 				case IPSEC_MODE_TUNNEL:
-					content = __malloc(sizeof(Content_AH_Tunnel), ni->pool);
+					content = __malloc(sizeof(Content_AH_Tunnel), nic->pool);
 					break;
 				case IPSEC_MODE_TRANSPORT:
-					content = __malloc(sizeof(Content_AH_Transport), ni->pool);
+					content = __malloc(sizeof(Content_AH_Transport), nic->pool);
 					break;
 			}
 			break;
@@ -85,7 +85,7 @@ Content* content_alloc(NetworkInterface* ni, uint64_t* attrs) {
 		return NULL;
 	}
 
-	content->ni = ni;
+	content->nic = nic;
 	content->ipsec_protocol = ipsec_protocol;
 	content->ipsec_mode = mode;
 	switch(content->ipsec_protocol) {
@@ -121,5 +121,5 @@ Content* content_alloc(NetworkInterface* ni, uint64_t* attrs) {
 }
 
 void content_free(Content* content) {
-	__free(content, content->ni->pool);
+	__free(content, content->nic->pool);
 }

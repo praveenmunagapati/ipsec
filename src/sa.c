@@ -2,17 +2,17 @@
 #define DONT_MAKE_WRAPPER
 #include <_malloc.h>
 #undef DONT_MAKE_WRAPPER
-#include <net/ni.h>
+#include <net/nic.h>
 #include <lock.h>
 
 #include "sa.h"
 #include "auth.h"
 #include "crypto.h"
 
-SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
+SA* sa_alloc(NIC* nic, uint64_t* attrs) {
 	bool has_key(uint64_t key) {
 		int i = 0;
-		while(attrs[i * 2] != NI_NONE) {
+		while(attrs[i * 2] != NIC_NONE) {
 			if(attrs[i * 2] == key)
 				return true;
 
@@ -24,7 +24,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 
 	uint64_t get_value(uint64_t key) {
 		int i = 0;
-		while(attrs[i * 2] != NI_NONE) {
+		while(attrs[i * 2] != NIC_NONE) {
 			if(attrs[i * 2] == key)
 				return attrs[i * 2 + 1];
 
@@ -41,25 +41,25 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 		if(!has_key(SA_CRYPTO_KEY)) {
 			return NULL;
 		}
-		sa = __malloc(sizeof(SA_ESP), ni->pool);
+		sa = __malloc(sizeof(SA_ESP), nic->pool);
 		if(!sa) {
 			printf("Can't allocate SA\n");
 			return NULL;
 		}
 		memset(sa, 0, sizeof(SA_ESP));
-		sa->ni = ni;
+		sa->nic = nic;
 		sa->ipsec_protocol = IP_PROTOCOL_ESP;
 	} else {
 		if(!has_key(SA_AUTH_KEY)) {
 			return NULL;
 		}
-		sa = __malloc(sizeof(SA_AH), ni->pool);
+		sa = __malloc(sizeof(SA_AH), nic->pool);
 		if(!sa) {
 			printf("Can't allocate SA\n");
 			return NULL;
 		}
 		memset(sa, 0, sizeof(SA_AH));
-		sa->ni = ni;
+		sa->nic = nic;
 		sa->ipsec_protocol = IP_PROTOCOL_AH;
 	}
 
@@ -124,14 +124,14 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 						memcpy(des_key, &key, sizeof(DES_cblock));
 						DES_set_odd_parity(&des_key);
 
-						DES_key_schedule* ks = __malloc(sizeof(DES_key_schedule), ni->pool);
+						DES_key_schedule* ks = __malloc(sizeof(DES_key_schedule), nic->pool);
 						if(!ks) {
 							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
 						if(DES_set_key_checked(&des_key, ks)) {
 							printf("Encrypt key is weak key\n");
-							__free(ks, ni->pool);
+							__free(ks, nic->pool);
 							goto error_set_key;
 						}
 
@@ -146,14 +146,14 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 						for(int i = 0; i < 3; i++)
 							DES_set_odd_parity(&des_key_3[i]);
 
-						DES_key_schedule* ks_3 = __malloc(sizeof(DES_key_schedule) * 3, ni->pool);
+						DES_key_schedule* ks_3 = __malloc(sizeof(DES_key_schedule) * 3, nic->pool);
 						if(!ks_3) {
 							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
 						if(DES_set_key_checked(&des_key_3[0], &ks_3[0]) || DES_set_key_checked(&des_key_3[1], &ks_3[1]) || DES_set_key_checked(&des_key_3[2], &ks_3[2])) {
 							printf("Encrypt key is weak key\n");
-							__free(ks_3, ni->pool);
+							__free(ks_3, nic->pool);
 							goto error_set_key;
 						}
 
@@ -163,7 +163,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 					case CRYPTO_BLOWFISH_CBC:
 						;
 						/*BF*/
-						BF_KEY* bf_key = __malloc(sizeof(BF_KEY), ni->pool);
+						BF_KEY* bf_key = __malloc(sizeof(BF_KEY), nic->pool);
 						if(!bf_key) {
 							printf("Can't allocate key\n");
 							goto fail_key_alloc;
@@ -175,7 +175,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 					case CRYPTO_CAST128_CBC:
 						;
 						/*Cast*/
-						CAST_KEY* cast_key = __malloc(sizeof(CAST_KEY), ni->pool);
+						CAST_KEY* cast_key = __malloc(sizeof(CAST_KEY), nic->pool);
 						if(!cast_key) {
 							printf("Can't allocate key\n");
 							goto fail_key_alloc;
@@ -187,27 +187,27 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 					case CRYPTO_RIJNDAEL_CBC:
 						;
 						{
-						AES_KEY* encrypt_key = __malloc(sizeof(AES_KEY), ni->pool);
+						AES_KEY* encrypt_key = __malloc(sizeof(AES_KEY), nic->pool);
 						if(!encrypt_key) {
 							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
-						AES_KEY* decrypt_key = __malloc(sizeof(AES_KEY), ni->pool);
+						AES_KEY* decrypt_key = __malloc(sizeof(AES_KEY), nic->pool);
 						if(!decrypt_key) {
 							printf("Can't allocate key\n");
-							__free(encrypt_key, ni->pool);
+							__free(encrypt_key, nic->pool);
 							goto fail_key_alloc;
 						}
 						if(AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, encrypt_key)) {
 							printf("Wrong key\n");
-							__free(encrypt_key, ni->pool);
-							__free(decrypt_key, ni->pool);
+							__free(encrypt_key, nic->pool);
+							__free(decrypt_key, nic->pool);
 							goto fail_key_alloc;
 						}
 						if(AES_set_decrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, decrypt_key)) {
 							printf("Wrong key\n");
-							__free(encrypt_key, ni->pool);
-							__free(decrypt_key, ni->pool);
+							__free(encrypt_key, nic->pool);
+							__free(decrypt_key, nic->pool);
 							goto fail_key_alloc;
 						}
 						((SA_ESP*)sa)->encrypt_key = encrypt_key;
@@ -218,15 +218,15 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 						;
 						{
 						/*AES*/
-						AES_KEY* encrypt_key = __malloc(sizeof(AES_KEY), ni->pool);
+						AES_KEY* encrypt_key = __malloc(sizeof(AES_KEY), nic->pool);
 						if(!encrypt_key) {
 							printf("Can't allocate key\n");
 							goto fail_key_alloc;
 						}
 						if(AES_set_encrypt_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, (crypto_key_length - 4) * 8, encrypt_key)) {
 							printf("Wrong key\n");
-							__free(encrypt_key, ni->pool);
-							//__free(decrypt_key, ni->pool);
+							__free(encrypt_key, nic->pool);
+							//__free(decrypt_key, nic->pool);
 							goto fail_key_alloc;
 						}
 
@@ -237,16 +237,16 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 					case CRYPTO_CAMELLIA_CBC:
 						;
 						/*Camellia*/
-						CAMELLIA_KEY* camellia_key = __malloc(sizeof(CAMELLIA_KEY), ni->pool);
+						CAMELLIA_KEY* camellia_key = __malloc(sizeof(CAMELLIA_KEY), nic->pool);
 						if(!camellia_key) {
 							printf("Can't allocate key\n");
-							__free(camellia_key, ni->pool);
+							__free(camellia_key, nic->pool);
 							goto fail_key_alloc;
 						}
 						printf("crypto_key_length : %d\n", crypto_key_length);
 						if(Camellia_set_key((const unsigned char*)((SA_ESP*)sa)->crypto_key, crypto_key_length * 8, camellia_key)) {
 							printf("Wrong key\n");
-							__free(camellia_key, ni->pool);
+							__free(camellia_key, nic->pool);
 							goto fail_key_alloc;
 						}
 						((SA_ESP*)sa)->encrypt_key = camellia_key;
@@ -290,7 +290,7 @@ SA* sa_alloc(NetworkInterface* ni, uint64_t* attrs) {
 				break;
 			case SA_REPLY:
 				if(attrs[i * 2 + 1]) {
-					sa->window = (Window*)__malloc(sizeof(Window), ni->pool);
+					sa->window = (Window*)__malloc(sizeof(Window), nic->pool);
 					if(!sa->window) {
 						printf("Can't allocate window\n");
 						goto sa_free;
@@ -309,19 +309,19 @@ sa_free:
 	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
 		if(((SA_ESP*)sa)->encrypt_key) {
 			if(((SA_ESP*)sa)->encrypt_key == ((SA_ESP*)sa)->decrypt_key) {
-				__free(((SA_ESP*)sa)->encrypt_key, ni->pool);
+				__free(((SA_ESP*)sa)->encrypt_key, nic->pool);
 			} else {
 				//AES key
-				__free(((SA_ESP*)sa)->encrypt_key, ni->pool);
-				__free(((SA_ESP*)sa)->decrypt_key, ni->pool);
+				__free(((SA_ESP*)sa)->encrypt_key, nic->pool);
+				__free(((SA_ESP*)sa)->decrypt_key, nic->pool);
 			}
 		}
 	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
 	}
 	if(sa->window) {
-		__free(sa->window, ni->pool);
+		__free(sa->window, nic->pool);
 	}
-	__free(sa, ni->pool);
+	__free(sa, nic->pool);
 
 	return NULL;
 }
@@ -330,23 +330,23 @@ bool sa_free(SA* sa) {
 	if(sa->ipsec_protocol == IP_PROTOCOL_ESP) {
 		if(((SA_ESP*)sa)->encrypt_key) {
 			if(((SA_ESP*)sa)->encrypt_key == ((SA_ESP*)sa)->decrypt_key) {
-				__free(((SA_ESP*)sa)->encrypt_key, sa->ni->pool);
+				__free(((SA_ESP*)sa)->encrypt_key, sa->nic->pool);
 			} else {
 				//AES key
-				__free(((SA_ESP*)sa)->encrypt_key, sa->ni->pool);
-				__free(((SA_ESP*)sa)->decrypt_key, sa->ni->pool);
+				__free(((SA_ESP*)sa)->encrypt_key, sa->nic->pool);
+				__free(((SA_ESP*)sa)->decrypt_key, sa->nic->pool);
 			}
 		}
 		if(((SA_ESP*)sa)->auth_key) {
-			__free(((SA_ESP*)sa)->auth_key, sa->ni->pool);
+			__free(((SA_ESP*)sa)->auth_key, sa->nic->pool);
 		}
 	} else if(sa->ipsec_protocol == IP_PROTOCOL_AH) {
 		if(((SA_AH*)sa)->auth_key) {
-			__free(((SA_AH*)sa)->auth_key, sa->ni->pool);
+			__free(((SA_AH*)sa)->auth_key, sa->nic->pool);
 		}
 	}
-	__free(sa->window, sa->ni->pool);
-	__free(sa, sa->ni->pool);
+	__free(sa->window, sa->nic->pool);
+	__free(sa, sa->nic->pool);
 
 	return true;
 }
