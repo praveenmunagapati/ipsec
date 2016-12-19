@@ -12,7 +12,7 @@ void rwlock_init(RWLock* rwlock) {
 	rwlock->read_count = 0;
 }
 
-void rwlock_write_lock(RWLock* rwlock) {
+void rwlock_wlock(RWLock* rwlock) {
 	lock_lock(&rwlock->write_lock);
 	lock_lock(&rwlock->read_lock);
 	
@@ -28,7 +28,7 @@ void rwlock_write_lock(RWLock* rwlock) {
 	}
 }
 
-bool rwlock_write_try_lock(RWLock* rwlock) {
+bool rwlock_wtry_lock(RWLock* rwlock) {
 	if(!lock_trylock(&rwlock->write_lock))
 		return false;
 
@@ -59,12 +59,12 @@ unlock_write_lock:
 	return false;
 }
 
-void rwlock_write_unlock(RWLock* rwlock) {
+void rwlock_wunlock(RWLock* rwlock) {
 	lock_unlock(&rwlock->read_lock);
 	lock_unlock(&rwlock->write_lock);
 }
 
-void rwlock_read_lock(RWLock* rwlock) {
+void rwlock_rlock(RWLock* rwlock) {
 	lock_lock(&rwlock->read_lock);
 	lock_lock(&rwlock->read_count_lock);
 	rwlock->read_count++;
@@ -72,7 +72,7 @@ void rwlock_read_lock(RWLock* rwlock) {
 	lock_unlock(&rwlock->read_lock);
 }
 
-bool rwlock_read_try_lock(RWLock* rwlock) {
+bool rwlock_rtry_lock(RWLock* rwlock) {
 	if(!lock_trylock(&rwlock->read_lock))
 		return false;
 
@@ -92,7 +92,7 @@ unlock_read_lock:
 	return false;
 }
 
-void rwlock_read_unlock(RWLock* rwlock) {
+void rwlock_runlock(RWLock* rwlock) {
 	lock_lock(&rwlock->read_count_lock);
 	rwlock->read_count--;
 	lock_unlock(&rwlock->read_count_lock);

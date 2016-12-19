@@ -1,6 +1,6 @@
 .PHONY: all clean run
 
-CFLAGS = -O2 -g -Wall -Wno-unused -Werror -std=gnu99 -DDEBUG -I../../../../include -I./include
+CFLAGS = -O2 -g -Wall -Wno-unused -Werror -std=gnu99 -DLINUX -DDEBUG -I../../../../include -I./include
 
 DIR = obj
 

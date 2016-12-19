@@ -24,12 +24,12 @@ typedef struct _RWLock {
  */
 void rwlock_init(RWLock* rwlock);
 
-void rwlock_write_lock(RWLock* rwlock);
-bool rwlock_write_try_lock(RWLock* rwlock);
-void rwlock_write_unlock(RWLock* rwlock);
+void rwlock_wlock(RWLock* rwlock);
+bool rwlock_wtry_lock(RWLock* rwlock);
+void rwlock_wunlock(RWLock* rwlock);
 
-void rwlock_read_lock(RWLock* rwlock);
-bool rwlock_read_try_lock(RWLock* rwlock);
-void rwlock_read_unlock(RWLock* rwlock);
+void rwlock_rlock(RWLock* rwlock);
+bool rwlock_rtry_lock(RWLock* rwlock);
+void rwlock_runlock(RWLock* rwlock);
 
 #endif /* ___LOCK_H__ */

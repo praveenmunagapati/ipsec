@@ -3,6 +3,7 @@
 
 #include <util/types.h>
 
+#define AH_HEADER_LEN	12
 typedef struct _AH{
 	uint8_t		next_hdr;
 	uint8_t		len;

@@ -1,0 +1,125 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+CFLAGS	Makefile	/^CFLAGS = -O2 -g -Wall -Wno-unused -Werror -std=gnu99 -DDEBUG -I..\/..\/..\/..\/include -I.\/include$/;"	m
+DEBUG_PRINT	include/debug.h	6;"	d
+DEBUG_PRINT	include/debug.h	8;"	d
+DIR	Makefile	/^DIR = obj$/;"	m
+DONT_MAKE_WRAPPER	src/sa.c	2;"	d	file:
+DONT_MAKE_WRAPPER	src/sa.c	4;"	d	file:
+DONT_MAKE_WRAPPER	src/sad.c	4;"	d	file:
+DONT_MAKE_WRAPPER	src/sad.c	6;"	d	file:
+DONT_MAKE_WRAPPER	src/sapd.c	3;"	d	file:
+DONT_MAKE_WRAPPER	src/sapd.c	5;"	d	file:
+DONT_MAKE_WRAPPER	src/sp.c	4;"	d	file:
+DONT_MAKE_WRAPPER	src/sp.c	6;"	d	file:
+DONT_MAKE_WRAPPER	src/spd.c	3;"	d	file:
+DONT_MAKE_WRAPPER	src/spd.c	5;"	d	file:
+LIBS	Makefile	/^LIBS = ..\/..\/..\/..\/lib\/libumpn.a$/;"	m
+LIB_DIR	Makefile	/^LIB_DIR = ..\/lib\/$/;"	m
+MAGIC_STRING	src/sapd.c	10;"	d	file:
+OBJS	Makefile	/^OBJS = obj\/main.o obj\/sadb.o obj\/rwlock.o obj\/sa.o obj\/sad.o obj\/sp.o obj\/spd.o obj\/sapd.o$/;"	m
+PFKEY_BUF_SIZE	src/sadb.c	259;"	d	file:
+RWLock	include/rwlock.h	/^} RWLock;$/;"	t	typeref:struct:_RWLock
+SA	include/sa.h	/^}__attribute__ ((packed)) SA;$/;"	t	typeref:struct:_SA
+SAD	include/sad.h	/^}__attribute__ ((packed)) SAD;$/;"	t	typeref:struct:_SAD
+SAPD	include/sapd.h	/^}__attribute__ ((packed)) SAPD;$/;"	t	typeref:struct:_SAPD
+SP	include/sp.h	/^} SP;$/;"	t	typeref:struct:_SP
+SPD	include/spd.h	/^} SPD;$/;"	t	typeref:struct:_SPD
+SPD_Table	include/spd.h	/^}__attribute__ ((packed)) SPD_Table;$/;"	t	typeref:struct:_SPD_Table
+_RWLock	include/rwlock.h	/^typedef struct _RWLock {$/;"	s
+_SA	include/sa.h	/^typedef struct _SA {$/;"	s
+_SAD	include/sad.h	/^typedef struct _SAD {$/;"	s
+_SAPD	include/sapd.h	/^typedef struct _SAPD {$/;"	s
+_SP	include/sp.h	/^typedef struct _SP{$/;"	s
+_SPD	include/spd.h	/^typedef struct _SPD {$/;"	s
+_SPD_Table	include/spd.h	/^typedef struct _SPD_Table {$/;"	s
+__DEBUG_H__	include/debug.h	2;"	d
+__FP_SADB_H__	src/fp_sadb.h	2;"	d
+__SADB_H__	include/sadb.h	2;"	d
+__SAPD_H__	include/sapd.h	2;"	d
+__SA_H__	include/sa.h	2;"	d
+___LOCK_H__	include/rwlock.h	2;"	d
+__sad_H__	include/sad.h	2;"	d
+__sp_H__	include/sp.h	2;"	d
+__spd_H__	include/spd.h	2;"	d
+address_dst	include/sa.h	/^	struct sadb_address* address_dst; \/\/destination$/;"	m	struct:_SA	typeref:struct:_SA::sadb_address
+address_proxy	include/sa.h	/^	struct sadb_address* address_proxy; \/\/proxy$/;"	m	struct:_SA	typeref:struct:_SA::sadb_address
+address_src	include/sa.h	/^	struct sadb_address* address_src; \/\/source$/;"	m	struct:_SA	typeref:struct:_SA::sadb_address
+data	include/sa.h	/^	void* data; \/\/data$/;"	m	struct:_SA
+data	include/sp.h	/^	void* data;$/;"	m	struct:_SP
+database	include/sad.h	/^	Map* database;$/;"	m	struct:_SAD
+dummy_buffer	src/main.c	/^uint8_t dummy_buffer[8192];$/;"	v
+dummy_init	src/main.c	/^void dummy_init() {$/;"	f
+fp_sadb	src/fp_sadb.c	/^static void* fp_sadb;$/;"	v	file:
+fp_sadb_add	src/fp_sadb.c	/^bool fp_sadb_add(struct sadb_sa* sa) {$/;"	f
+fp_sadb_remove	src/fp_sadb.c	/^bool fp_sadb_remove(struct sadb_sa* sa) {$/;"	f
+fp_sadb_set	src/fp_sadb.c	/^bool fp_sadb_set(int vmid) {$/;"	f
+fp_sadb_update	src/fp_sadb.c	/^bool fp_sadb_update() {$/;"	f
+get_shared_memory	src/main.c	/^void* get_shared_memory(int vmid) {$/;"	f
+identity_dst	include/sa.h	/^	struct sadb_ident* identity_dst;$/;"	m	struct:_SA	typeref:struct:_SA::sadb_ident
+identity_src	include/sa.h	/^	struct sadb_ident* identity_src;$/;"	m	struct:_SA	typeref:struct:_SA::sadb_ident
+inbound_table	include/spd.h	/^	SPD_Table inbound_table;$/;"	m	struct:_SPD
+key_auth	include/sa.h	/^	struct sadb_key* key_auth; \/\/authentication key$/;"	m	struct:_SA	typeref:struct:_SA::sadb_key
+key_encrypt	include/sa.h	/^	struct sadb_key* key_encrypt; \/\/encryption key$/;"	m	struct:_SA	typeref:struct:_SA::sadb_key
+len	include/sa.h	/^	uint16_t len;$/;"	m	struct:_SA
+lifetime_current	include/sa.h	/^	struct sadb_lifetime* lifetime_current; \/\/current$/;"	m	struct:_SA	typeref:struct:_SA::sadb_lifetime
+lifetime_hard	include/sa.h	/^	struct sadb_lifetime* lifetime_hard; \/\/hard$/;"	m	struct:_SA	typeref:struct:_SA::sadb_lifetime
+lifetime_soft	include/sa.h	/^	struct sadb_lifetime* lifetime_soft; \/\/soft$/;"	m	struct:_SA	typeref:struct:_SA::sadb_lifetime
+magic	include/sapd.h	/^	char magic[16];$/;"	m	struct:_SAPD
+main	src/main.c	/^int main(int argc, char** argv) {$/;"	f
+outbound_table	include/spd.h	/^	SPD_Table outbound_table;$/;"	m	struct:_SPD
+read_count	include/rwlock.h	/^	uint8_t volatile read_count;$/;"	m	struct:_RWLock
+read_count_lock	include/rwlock.h	/^	uint8_t volatile read_count_lock;$/;"	m	struct:_RWLock
+read_lock	include/rwlock.h	/^	uint8_t volatile read_lock;$/;"	m	struct:_RWLock
+rwlock	include/sad.h	/^	RWLock rwlock;$/;"	m	struct:_SAD
+rwlock	include/spd.h	/^	RWLock rwlock;$/;"	m	struct:_SPD
+rwlock	include/spd.h	/^	RWLock rwlock;$/;"	m	struct:_SPD_Table
+rwlock_init	src/rwlock.c	/^void rwlock_init(RWLock* rwlock) {$/;"	f
+rwlock_rlock	src/rwlock.c	/^void rwlock_rlock(RWLock* rwlock) {$/;"	f
+rwlock_rtry_lock	src/rwlock.c	/^bool rwlock_rtry_lock(RWLock* rwlock) {$/;"	f
+rwlock_runlock	src/rwlock.c	/^void rwlock_runlock(RWLock* rwlock) {$/;"	f
+rwlock_wlock	src/rwlock.c	/^void rwlock_wlock(RWLock* rwlock) {$/;"	f
+rwlock_wtry_lock	src/rwlock.c	/^bool rwlock_wtry_lock(RWLock* rwlock) {$/;"	f
+rwlock_wunlock	src/rwlock.c	/^void rwlock_wunlock(RWLock* rwlock) {$/;"	f
+sa	include/sa.h	/^	struct sadb_sa* sa;$/;"	m	struct:_SA	typeref:struct:_SA::sadb_sa
+sa_alloc	src/sa.c	/^SA* sa_alloc(int data_size) {$/;"	f
+sa_free	src/sa.c	/^void sa_free(SA* sa) {$/;"	f
+sad	include/sapd.h	/^	SAD* sad;$/;"	m	struct:_SAPD
+sad_add_sa	src/sad.c	/^bool sad_add_sa(SAD* sad, SA* sa) {$/;"	f
+sad_create	src/sad.c	/^SAD* sad_create() {$/;"	f
+sad_delete	src/sad.c	/^void sad_delete(SAD* sad) {$/;"	f
+sad_get_sa	src/sad.c	/^SA* sad_get_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol) {$/;"	f
+sad_remove_sa	src/sad.c	/^SA* sad_remove_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol) {$/;"	f
+sadb_add_process	src/sadb.c	/^static bool sadb_add_process(struct sadb_msg* recv_msg) {$/;"	f	file:
+sadb_connect	src/sadb.c	/^int sadb_connect() {$/;"	f
+sadb_delete_process	src/sadb.c	/^static bool sadb_delete_process(struct sadb_msg* recv_msg) {$/;"	f	file:
+sadb_disconnect	src/sadb.c	/^void sadb_disconnect(int fd) {$/;"	f
+sadb_dump	src/sadb.c	/^bool sadb_dump(int fd) {$/;"	f
+sadb_dump_process	src/sadb.c	/^static bool sadb_dump_process(struct sadb_msg* recv_msg) {$/;"	f	file:
+sadb_expire_process	src/sadb.c	/^static bool sadb_expire_process(struct sadb_msg* recv_msg) {$/;"	f	file:
+sadb_flush_process	src/sadb.c	/^static bool sadb_flush_process(struct sadb_msg* recv_msg) {$/;"	f	file:
+sadb_get	src/sadb.c	/^bool sadb_get(int fd, struct sadb_sa* sa, struct sadb_address* source, struct sadb_address* destination) {$/;"	f
+sadb_get_process	src/sadb.c	/^static bool sadb_get_process(struct sadb_msg* recv_msg) {$/;"	f	file:
+sadb_process	src/sadb.c	/^int sadb_process(int fd) {$/;"	f
+sadb_set	src/sadb.c	/^bool sadb_set(void* _shared_memory) {$/;"	f
+sadb_update_process	src/sadb.c	/^static bool sadb_update_process(struct sadb_msg* recv_msg) {$/;"	f	file:
+sapd_check	src/sapd.c	/^bool sapd_check(void* shared_memory) {$/;"	f
+sapd_create	src/sapd.c	/^SAPD* sapd_create() {$/;"	f
+sensitivity	include/sa.h	/^	struct sadb_sens* sensitivity;$/;"	m	struct:_SA	typeref:struct:_SA::sadb_sens
+shared_memory	src/sadb.c	/^static void* shared_memory;$/;"	v	file:
+sp_alloc	src/sp.c	/^SP* sp_alloc(uint64_t* attrs) {$/;"	f
+sp_free	src/sp.c	/^bool sp_free(SP* sp) {$/;"	f
+spad_delete	src/sapd.c	/^void spad_delete(SAPD* sapd) {$/;"	f
+spd	include/sapd.h	/^	SPD* spd;$/;"	m	struct:_SAPD
+spd_add_sp	src/spd.c	/^bool spd_add_sp(SPD* spd, uint8_t direction, SP* sp, int priority) {$/;"	f
+spd_create	src/spd.c	/^SPD* spd_create() {$/;"	f
+spd_delete	src/spd.c	/^bool spd_delete(SPD* spd) {$/;"	f
+spd_get_sp	src/spd.c	/^SP* spd_get_sp(SPD* spd, uint8_t direction) {$/;"	f
+spd_get_sp_index	src/spd.c	/^SP* spd_get_sp_index(SPD* spd, uint8_t direction, uint16_t index) {$/;"	f
+spd_remove_sp	src/spd.c	/^SP* spd_remove_sp(SPD* spd, uint8_t direction, int index) {$/;"	f
+table	include/spd.h	/^	List* table;$/;"	m	struct:_SPD_Table
+write_lock	include/rwlock.h	/^	uint8_t volatile write_lock;$/;"	m	struct:_RWLock
