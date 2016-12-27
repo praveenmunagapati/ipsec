@@ -448,14 +448,14 @@ bool sadb_get(int fd, struct sadb_sa* sa, struct sadb_address* source, struct sa
 	return true;
 }
 
-int sadb_process(int fd, SAPD* sapd) {
+bool sadb_process(int fd, SAPD* sapd) {
 	uint8_t* buf[PFKEY_BUF_SIZE];
 	struct sadb_msg* recv_msg = (struct sadb_msg*)buf;
 	int length = read(fd, recv_msg, PFKEY_BUF_SIZE);
 	if(length < 0) {
 		//printf("Error: %s\n");
 		DEBUG_PRINT("Error: sadb_process\n");
-		return -3;
+		return false;
 	}
 	switch(recv_msg->sadb_msg_type) {
 		case SADB_UPDATE:
@@ -543,5 +543,5 @@ int sadb_process(int fd, SAPD* sapd) {
 			break;
 	}
 
-	return 0;
+	return true;
 }
