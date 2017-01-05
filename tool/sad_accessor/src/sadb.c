@@ -1,3 +1,7 @@
+/*
+   * RFC2367 https://www.ietf.org/rfc/rfc2367.txt
+   * PF_KEY Key Management API, version 2
+ */
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -12,6 +16,9 @@
 
 static bool sadb_update_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
+	if(len <= 0)
+		return false;
+
 	struct sadb_ext* sadb_ext = (struct sadb_ext*)((uint8_t*)recv_msg + sizeof(struct sadb_msg));
 	struct sadb_sa* sadb_sa = NULL;
 	struct sadb_address* sadb_address_source = NULL;
@@ -59,8 +66,11 @@ static bool sadb_update_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 	return true;
 }
 
-static bool sadb_add_process(SAPD* sapd, struct sadb_msg* recv_msg) {
+static bool sadb_add_process(int fd, SAPD* sapd, struct sadb_msg* recv_msg) {
 	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
+	if(len <= 0)
+		return false;
+
 	struct sadb_ext* sadb_ext = (struct sadb_ext*)((uint8_t*)recv_msg + sizeof(struct sadb_msg));
 	struct sadb_sa* sadb_sa = NULL;
 	struct sadb_address* sadb_address_source = NULL;
@@ -99,12 +109,18 @@ static bool sadb_add_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 		sadb_ext = (struct sadb_ext*)((uint8_t*)sadb_ext + sadb_ext->sadb_ext_len * 8);
 	}
 
-	//TODO add sa from shared sadb
+	//TODO SADB Get Request
+	if(!!sadb_sa & !!sadb_address_source & !!sadb_address_destination)
+		sadb_get(fd, sadb_sa, sadb_address_source, sadb_address_destination);
+
 	return true;
 }
 
 static bool sadb_delete_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
+	if(len <= 0)
+		return false;
+
 	struct sadb_ext* sadb_ext = (struct sadb_ext*)((uint8_t*)recv_msg + sizeof(struct sadb_msg));
 	struct sadb_sa* sadb_sa = NULL;
 	struct sadb_address* sadb_address_source = NULL;
@@ -134,13 +150,28 @@ static bool sadb_delete_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 		len -= sadb_ext->sadb_ext_len;
 		sadb_ext = (struct sadb_ext*)((uint8_t*)sadb_ext + sadb_ext->sadb_ext_len * 8);
 	}
-	//TODO remove sa from shared sadb
+
+	struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)sadb_address_destination + sizeof(*sadb_address_destination));
+	uint32_t dest_address = sockaddr->sin_addr.s_addr;
+	uint32_t protocol = sadb_address_destination->sadb_address_proto;
+
+	SA* sa = sapd_remove_sa(sapd, sadb_sa->sadb_sa_spi, dest_address, protocol);
+	if(sa) {
+		sa_free(sa);
+		return true;
+	}
 
 	return true;
 }
 
 static bool sadb_get_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
+	if(len <= 0)
+		return false;
+
+	if(len <= 0)
+		return false;
+
 	SA* sa = sa_alloc(len * 8);
 	sa->len = len;
 	memcpy(sa->data, (uint8_t*)recv_msg + sizeof(struct sadb_msg), len * 8);
@@ -151,42 +182,55 @@ static bool sadb_get_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 				DEBUG_PRINT("reserved %d\n", sadb_ext->sadb_ext_type);
 				break;
 			case SADB_EXT_SA:
+				DEBUG_PRINT("SADB_EXT_SA\n");
 				sa->sa = (struct sadb_sa*)sadb_ext;
 				break;
 			case SADB_EXT_LIFETIME_CURRENT:
+				DEBUG_PRINT("SADB_EXT_LIFETIME_CURRENT\n");
 				sa->lifetime_current = (struct sadb_lifetime*)sadb_ext;
 				break;
 			case SADB_EXT_LIFETIME_HARD:
+				DEBUG_PRINT("SADB_EXT_LIFETIME_HARD\n");
 				sa->lifetime_hard = (struct sadb_lifetime*)sadb_ext;
 				break;
 			case SADB_EXT_LIFETIME_SOFT:
+				DEBUG_PRINT("SADB_EXT_LIFETIME_SOFT\n");
 				sa->lifetime_soft = (struct sadb_lifetime*)sadb_ext;
 				break;
 			case SADB_EXT_ADDRESS_SRC:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_SRC\n");
 				sa->address_src = (struct sadb_address*)sadb_ext;
 				break;
 			case SADB_EXT_ADDRESS_DST:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_DST\n");
 				sa->address_dst = (struct sadb_address*)sadb_ext;
 				break;
 			case SADB_EXT_ADDRESS_PROXY:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_PROXY\n");
 				sa->address_proxy = (struct sadb_address*)sadb_ext;
 				break;
 			case SADB_EXT_KEY_AUTH:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_AUTH\n");
 				sa->key_auth = (struct sadb_key*)sadb_ext;
 				break;
 			case SADB_EXT_KEY_ENCRYPT:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_ENCRYPT\n");
 				sa->key_encrypt = (struct sadb_key*)sadb_ext;
 				break;
 			case SADB_EXT_IDENTITY_SRC:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_SRC\n");
 				sa->identity_src = (struct sadb_ident*)sadb_ext;
 				break;
 			case SADB_EXT_IDENTITY_DST:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_DST\n");
 				sa->identity_dst = (struct sadb_ident*)sadb_ext;
 				break;
 			case SADB_EXT_SENSITIVITY:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_SENSITIVITY\n");
 				sa->sensitivity = (struct sadb_sens*)sadb_ext;
 				break;
 			case SADB_X_EXT_SA2:
+				DEBUG_PRINT("SADB_EXT_ADDRESS_SA2\n");
 				sa->x_sa2 = (struct sadb_x_sa2*)sadb_ext;
 				break;
 			default:
@@ -212,6 +256,9 @@ static bool sadb_acquire_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 
 static bool sadb_expire_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
+	if(len <= 0)
+		return false;
+
 	struct sadb_ext* sadb_ext = (struct sadb_ext*)((uint8_t*)recv_msg + sizeof(struct sadb_msg));
 	struct sadb_sa* sadb_sa = NULL;
 	struct sadb_address* sadb_address_source = NULL;
@@ -264,6 +311,9 @@ static bool sadb_dump_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 static bool sadb_x_spdupdate_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 	//TODO fix update
 	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
+	if(len <= 0)
+		return false;
+
 	SP* sp = sp_alloc(len * 8);
 	sp->len = len;
 	memcpy(sp->data, (uint8_t*)recv_msg + sizeof(struct sadb_msg), len * 8);
@@ -317,6 +367,9 @@ static bool sadb_x_spddelete_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 
 static bool sadb_x_spddump_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
+	if(len <= 0)
+		return false;
+
 	SP* sp = sp_alloc(len * 8);
 	sp->len = len;
 	memcpy(sp->data, (uint8_t*)recv_msg + sizeof(struct sadb_msg), len * 8);
@@ -449,7 +502,7 @@ bool sadb_get(int fd, struct sadb_sa* sa, struct sadb_address* source, struct sa
 }
 
 bool sadb_process(int fd, SAPD* sapd) {
-	uint8_t* buf[PFKEY_BUF_SIZE];
+	uint8_t buf[PFKEY_BUF_SIZE];
 	struct sadb_msg* recv_msg = (struct sadb_msg*)buf;
 	int length = read(fd, recv_msg, PFKEY_BUF_SIZE);
 	if(length < 0) {
@@ -465,7 +518,7 @@ bool sadb_process(int fd, SAPD* sapd) {
 			break;
 		case SADB_ADD:
 			DEBUG_PRINT("SADB ADD\n");
-			sadb_add_process(sapd, recv_msg);
+			sadb_add_process(fd, sapd, recv_msg);
 			break;
 		case SADB_DELETE:
 			DEBUG_PRINT("SADB DELETE\n");

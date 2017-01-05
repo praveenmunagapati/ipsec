@@ -6,7 +6,6 @@
 #include <net/ip.h>
 #include <linux/pfkeyv2.h>
 
-#include "ah.h"
 #include <auth.h>
 
 int _EVP_MD_CTX_copy_ex(EVP_MD_CTX *out, const EVP_MD_CTX *in)

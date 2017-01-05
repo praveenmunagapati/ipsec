@@ -61,7 +61,7 @@ SA* sapd_get_sa_ip(SAPD* sapd, IP* ip) {
 }
 
 SA* sapd_remove_sa(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol) {
-	return sad_get_sa(sapd->sad, spi, dest_address, protocol);
+	return sad_remove_sa(sapd->sad, spi, dest_address, protocol);
 }
 
 bool sapd_add_sp(SAPD* sapd, SP* sp) {

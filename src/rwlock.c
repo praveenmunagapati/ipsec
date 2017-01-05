@@ -28,7 +28,7 @@ void rwlock_wlock(RWLock* rwlock) {
 	}
 }
 
-bool rwlock_wtry_lock(RWLock* rwlock) {
+bool rwlock_wtrylock(RWLock* rwlock) {
 	if(!lock_trylock(&rwlock->write_lock))
 		return false;
 

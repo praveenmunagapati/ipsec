@@ -8,6 +8,8 @@ void ipsec_gdestroy();
 bool ipsec_init();
 void ipsec_destroy();
 
+void ipsec_dump();
+void ipsec_spddump();
 bool ipsec_process(Packet* packet);
 
 #endif /* __IPSEC_H__ */

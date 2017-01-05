@@ -49,6 +49,7 @@
 // 	SP_DESTINATION_PORT,
 // 	SP_IS_DESTINATION_PORT_SHARE,
 // } SP_ATTRIBUTES;
+#include <net/ip.h>
 #include <linux/pfkeyv2.h>
 #include <sa.h>
 

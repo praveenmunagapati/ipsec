@@ -462,6 +462,24 @@ static int cmd_route(int argc, char** argv, void(*callback)(char* result, int ex
 
 	return 0;
 }
+
+
+/*
+   * SAD Dump
+ */
+static int cmd_dump(int argc, char** argv, void(*callback)(char* result, int exit_status)) {
+	printf("SAD Dump\n");
+	ipsec_dump();
+
+	return 0;
+}
+
+static int cmd_spddump(int argc, char** argv, void(*callback)(char* result, int exit_status)) {
+	printf("SPD Dump\n");
+	ipsec_spddump();
+
+	return 0;
+}
 	
 // static int cmd_sa(int argc, char** argv, void(*callback)(char* result, int exit_status)) {
 // 	for(int i = 1; i < argc; i++) {
@@ -1671,6 +1689,16 @@ Command commands[] = {
 		.desc = "add or remove Gateway",
 		.func = cmd_route
 	},
+	{
+		.name = "dump",
+		.desc = "Dump all SAD Entry",
+		.func = cmd_dump
+	},
+	{
+		.name = "spddump",
+		.desc = "Dump all SPD Entry",
+		.func = cmd_spddump
+	},
 // 	{
 // 		.name = "sa",
 // 		.desc = "Manage IPSec Security Association Database\nadd get delete flush dump",
@@ -1699,14 +1727,14 @@ Command commands[] = {
 };
 
 static bool process(Packet* packet) {
-	if(arp_process(packet))
-		return true;
-
- 	if(icmp_process(packet))
- 		return true;
-
-	if(ipsec_process(packet))
-		return true;
+// 	if(arp_process(packet))
+// 		return true;
+// 
+//  	if(icmp_process(packet))
+//  		return true;
+// 
+// 	if(ipsec_process(packet))
+// 		return true;
 
 	return false;
 }
@@ -1725,24 +1753,24 @@ int main(int argc, char** argv) {
 
 	uint32_t count = nic_count();
 	while(is_continue) {
-		for(int i = 0; i < count; i++) {
-			NIC* nic = nic_get(i);
-			if(nic_has_input(nic)) {
-				Packet* packet = nic_input(nic);
-				if(!packet)
-					continue;
-
-				if(!process(packet)) {
-					nic_free(packet);
-				}
-			}
-		}
-// 		char* line = readline();
-// 		if(line != NULL) {
-// 			if(id == 0) {
-// 				cmd_exec(line, NULL);
-// 			}
-// 		}
+ 		for(int i = 0; i < count; i++) {
+ 			NIC* nic = nic_get(i);
+ 			if(nic_has_input(nic)) {
+ 				Packet* packet = nic_input(nic);
+ 				if(!packet)
+ 					continue;
+ 
+ 				if(!process(packet)) {
+ 					nic_free(packet);
+ 				}
+ 			}
+ 		}
+ 		char* line = readline();
+ 		if(line != NULL) {
+ 			if(id == 0) {
+ 				cmd_exec(line, NULL);
+ 			}
+ 		}
 	}
 
 	thread_barrior();

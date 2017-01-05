@@ -71,8 +71,10 @@ SA* sad_get_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol) 
 
 	SA* sa = map_get(_sad, (void*)((uint64_t)dest_address << 8 | (uint64_t)protocol));
 	rwlock_runlock(&sad->rwlock);
-	if(DEBUG)
-		sa_dump(sa);
+
+#ifdef DEBUG
+	sa_dump(sa);
+#endif
 
 	return sa;
 }
@@ -108,9 +110,11 @@ bool sad_add_sa(SAD* sad, SA* sa) {
 		rwlock_wunlock(&sad->rwlock);
 		return false;
 	}
+
 	rwlock_wunlock(&sad->rwlock);
-	if(DEBUG)
-		sa_dump(sa);
+#ifdef DEBUG
+	sa_dump(sa);
+#endif
 
 	return true;
 }
@@ -134,8 +138,9 @@ SA* sad_remove_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protoco
 	}
 
 	rwlock_wunlock(&sad->rwlock);
-	if(DEBUG)
-		sa_dump(sa);
+#ifdef DEBUG
+	sa_dump(sa);
+#endif
 
 	return sa;
 }

@@ -11,6 +11,10 @@
 #include <linux/ipsec.h>
 #include <netinet/in.h>
 
+// #undef	IP_TTL
+// #include <net/ip.h>
+#define AUTH_DATA_LEN 	128
+
 #include <sapd.h>
 #include "ipsec.h"
 #include "esp.h"
@@ -76,6 +80,39 @@ void ipsec_gdestroy() {
 	//TODO Fix here
 }
 
+void ipsec_dump() {
+	SAD* sad = sapd->sad;
+
+	MapIterator iter;
+	rwlock_rlock(&sad->rwlock);
+	map_iterator_init(&iter, sad->database);
+	while(map_iterator_has_next(&iter)) {
+		MapEntry* entry = map_iterator_next(&iter);
+		Map* _sad = entry->data;
+		MapIterator _iter;
+		map_iterator_init(&_iter, _sad);
+		while(map_iterator_has_next(&_iter)) {
+			MapEntry* _entry = map_iterator_next(&_iter);
+			SA* sa = _entry->data;
+			sa_dump(sa);
+		}
+	}
+	rwlock_runlock(&sad->rwlock);
+}
+
+void ipsec_spddump() {
+	SPD* spd = sapd->spd;
+
+	ListIterator iter;
+	rwlock_rlock(&spd->rwlock);
+	list_iterator_init(&iter, spd->list);
+	while(list_iterator_has_next(&iter)) {
+		SP* sp = list_iterator_next(&iter);
+		sp_dump(sp);
+	}
+	rwlock_runlock(&spd->rwlock);
+}
+
 /*
    * TODO: fix this function
    * This function needs optimization.
@@ -87,7 +124,7 @@ static bool route(Packet* packet) {
 	IPv4Interface* default_interface = NULL;
 	uint32_t default_addr = 0;
  
-	uint32_t count = nic_count();
+	int32_t count = nic_count();
 	for(int i = 0; i < count; i++) {
 		NIC* nic = nic_get(i);
 		Map* interfaces = nic_config_get(nic, NIC_ADDR_IPv4);
@@ -132,6 +169,18 @@ static bool inbound_process(Packet* packet) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
 
+	bool transport_unset(uint16_t header_len) {
+		return true;
+	}
+
+	bool tunnel_unset(uint16_t header_len) {
+		return true;
+	}
+
+	bool tail_unset(uint16_t tail_len) {
+		return true;
+	}
+
 	bool ipsec_decrypt(SA* sa) { 
 		ESP* esp = (ESP*)ip->body;
 		// 2. Seq# Validation
@@ -147,6 +196,38 @@ static bool inbound_process(Packet* packet) {
 
 		crypto_decrypt(sa->sa->sadb_sa_encrypt, esp->payload, len, (uint8_t*)sa->key_encrypt + sizeof(*sa->key_encrypt), sa->key_encrypt->sadb_key_bits / 8); 
 
+
+		ESP_T* esp_trailer = (ESP_T*)(ip->body + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
+		uint8_t header_len = ESP_HEADER_LEN;
+		uint8_t tail_len = esp_trailer->pad_len + ESP_TRAILER_LEN;
+
+		switch(sa->x_sa2->sadb_x_sa2_mode) {
+			case IPSEC_MODE_TUNNEL:
+				//TODO length check
+				//TODO add get iv len
+// 				if(!transport_unset(packet, header_len + ip->ihl * 4, tail_len))
+// 					return false;
+				if(!tunnel_unset(header_len))
+					return false;
+
+				break;
+			case IPSEC_MODE_TRANSPORT:
+				//TODO length check
+				ip->protocol = esp_trailer->next_hdr;
+				ip->ttl--;
+				//TODO add get iv len
+				if(!transport_unset(header_len))
+					return false;
+
+				ip->checksum = 0;
+				ip->checksum = endian16(checksum(ip, ip->ihl * 4));
+
+				break;
+			default:
+				return false;
+		}
+
+		tail_unset(tail_len);
 		return true;
 	}
 
@@ -175,22 +256,32 @@ static bool inbound_process(Packet* packet) {
 		ip->dscp = dscp;
 		ip->flags_offset = flags_offset;
 		ip->ttl = ttl;
-		// 
-		// 	if(ah->next_hdr == IP_PROTOCOL_IP && sa->address_proxy) {
-		// 		//Tunnel mode
-		// 		return tunnel_unset(packet, (ah->len + 2) * 4, 0);
-		// 	} else {
-		// 		//Transport mode
-		// 		ip->protocol = ah->next_hdr;
-		// 
-		// 		if(!transport_unset(packet, (ah->len + 2) * 4, 0))
-		// 			return false;
-		// 
-		// 		ether = (Ether*)(packet->buffer + packet->start);
-		// 		ip = (IP*)ether->payload;
-		// 		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
-		// 	}
 
+		uint8_t header_len = (ah->len + 2) * 4;
+
+		switch(sa->x_sa2->sadb_x_sa2_mode) {
+			case IPSEC_MODE_TUNNEL:
+				//TODO length check
+				//TODO add get iv len
+				if(!tunnel_unset(header_len))
+					return false;
+
+				break;
+			case IPSEC_MODE_TRANSPORT:
+				//TODO length check
+				ip->protocol = ah->next_hdr;
+				ip->ttl--;
+				//TODO add get iv len
+				if(!transport_unset(header_len))
+					return false;
+
+				ip->checksum = 0;
+				ip->checksum = endian16(checksum(ip, ip->ihl * 4));
+
+				break;
+			default:
+				return false;
+		}
 		return true;
 	}
 
@@ -200,8 +291,6 @@ static bool inbound_process(Packet* packet) {
 	 */
 	SA* sa = NULL;
 	if((ip->protocol == IP_PROTOCOL_ESP) || (ip->protocol == IP_PROTOCOL_AH)) {
-		uint8_t head_len = 0;
-		uint8_t tail_len = 0;
 		switch(ip->protocol) {
 			case IP_PROTOCOL_ESP:
 				;
@@ -214,9 +303,6 @@ static bool inbound_process(Packet* packet) {
 					return false;
 				}
 
-				ESP_T* esp_trailer = (ESP_T*)(ip->body + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
-				head_len = ESP_HEADER_LEN;
-				tail_len = esp_trailer->pad_len + ESP_TRAILER_LEN;
 				break;
 
 			case IP_PROTOCOL_AH:
@@ -229,33 +315,7 @@ static bool inbound_process(Packet* packet) {
 				if(!ipsec_proof(sa)) {
 					return false;
 				}
-				head_len = (ah->len + 2) * 4;
-				tail_len = 0;
 				break;
-		}
-
-		switch(sa->x_sa2->sadb_x_sa2_mode) {
-			case IPSEC_MODE_TUNNEL:
-				//TODO length check
-				//TODO add get iv len
-				if(!transport_unset(packet, head_len + ip->ihl * 4, tail_len))
-					return false;
-
-				break;
-			case IPSEC_MODE_TRANSPORT:
-				//TODO length check
-				ip->protocol = esp_trailer->next_hdr;
-				ip->ttl--;
-				//TODO add get iv len
-				if(!transport_unset(packet, head_len, tail_len))
-					return false;
-
-				ip->checksum = 0;
-				ip->checksum = endian16(checksum(ip, ip->ihl * 4));
-
-				break;
-			default:
-				return false;
 		}
 	}
 	ether = (Ether*)(packet->buffer + packet->start);
@@ -347,7 +407,11 @@ static bool outbound_process(SP* sp, Packet* packet) {
 				padding[i] = i + 1;
 			}
 			packet->end += tail_len;
-		} else if() {
+		} else if(packet->start > tail_len) {
+			memmove((uint8_t*)ether - tail_len, ether, packet->end - packet->start);
+			packet->start -= tail_len;
+			ether = (Ether*)(packet->buffer + packet->start);
+			ip = (IP*)ether->payload;
 		} else {
 			printf("packet has not enough padding\n");
 			return false;
@@ -378,24 +442,20 @@ static bool outbound_process(SP* sp, Packet* packet) {
 	bool ipsec_auth(SA* sa) {
 		AH* ah = NULL;
 
+		//TODO fix here auth_len
 		uint16_t auth_len = 0;
 		if(sa->address_proxy) {
 			if(!tunnel_set(12 + auth_len))
 				return false;
 
-			ether = (Ether*)(packet->buffer + packet->start);
-			ip = (IP*)ether->payload;
 			ah = (AH*)ip->body;
 
 			//ip->length = endian16(endian16(ip->length) + IP_LEN + AH_HEADER_LEN + ICV_LEN);
 			ah->next_hdr = IP_PROTOCOL_IP;
 		} else {
-			//TODO fix here auth_len
 			if(!transport_set(12 + auth_len))
 				return false;
 
-			ether = (Ether*)(packet->buffer + packet->start);
-			ip = (IP*)ether->payload;
 			ah = (AH*)ip->body;
 
 			//ip->length = endian16(endian16(ip->length) + AH_HEADER_LEN + ICV_LEN);
