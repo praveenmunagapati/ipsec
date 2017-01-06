@@ -307,7 +307,50 @@ inline void _camellia_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, 
 // 	},
 // };
 
-//void crypto_encrypt(ESP* esp, size_t size, uint8_t algorithm, void* key, uint16_t key_len) {
+//TODO check iv_len each algorithm
+int crypto_get_iv_len(uint8_t algorithm) {
+	switch(algorithm) {
+		case SADB_EALG_NONE:	       
+			return 0;
+		case SADB_EALG_DESCBC:	       
+			return 8;
+		case SADB_EALG_3DESCBC:	       
+			return 8;
+		case SADB_X_EALG_CASTCBC:       
+			return 8;
+		case SADB_X_EALG_BLOWFISHCBC:   
+			return 8;
+		case SADB_EALG_NULL:	       
+			return 8;
+		case SADB_X_EALG_AESCBC:	       
+			return 16;
+		case SADB_X_EALG_AESCTR:	       
+			return 8;
+		case SADB_X_EALG_AES_CCM_ICV8:  
+			return 8;
+		case SADB_X_EALG_AES_CCM_ICV12: 
+			return 12;
+		case SADB_X_EALG_AES_CCM_ICV16: 
+			return 16;
+		case SADB_X_EALG_AES_GCM_ICV8:  
+			return 8;
+		case SADB_X_EALG_AES_GCM_ICV12: 
+			return 12;
+		case SADB_X_EALG_AES_GCM_ICV16: 
+			return 16;
+		case SADB_X_EALG_CAMELLIACBC:   
+			return 16;
+		case SADB_X_EALG_NULL_AES_GMAC:
+			return 8;
+		case SADB_X_EALG_SERPENTCBC:
+			return 8;
+		case SADB_X_EALG_TWOFISHCBC: 
+			return 16;
+	}
+
+	return 0;
+}
+
 void crypto_encrypt(uint8_t algorithm, uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
 	switch(algorithm) {
 		case SADB_EALG_NONE:	       

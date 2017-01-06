@@ -135,6 +135,7 @@ void sp_dump(SP* sp) {
 	while(len) {
 		ipsecrequest_dump(ipsecrequest);
 		len -= ipsecrequest->sadb_x_ipsecrequest_len;
+		ipsecrequest = (struct sadb_x_ipsecrequest*)((uint8_t*)ipsecrequest + ipsecrequest->sadb_x_ipsecrequest_len * 8);
 	}
 	printf("Src Address:\n");
 	printf("\tProtocol:\t%s\n", print_ip_protocol(sp->address_src->sadb_address_proto));

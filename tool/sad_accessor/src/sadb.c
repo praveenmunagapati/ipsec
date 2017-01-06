@@ -165,17 +165,17 @@ static bool sadb_delete_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 }
 
 static bool sadb_get_process(SAPD* sapd, struct sadb_msg* recv_msg) {
-	int len = recv_msg->sadb_msg_len - (sizeof(struct sadb_msg) / 8);
-	if(len <= 0)
-		return false;
+	int len = recv_msg->sadb_msg_len;
 
-	if(len <= 0)
+	if(len - (sizeof(struct sadb_msg) / 8) <= 0)
 		return false;
 
 	SA* sa = sa_alloc(len * 8);
-	sa->len = len;
-	memcpy(sa->data, (uint8_t*)recv_msg + sizeof(struct sadb_msg), len * 8);
-	struct sadb_ext* sadb_ext = (struct sadb_ext*)(sa->data);
+	memcpy(sa->data, (uint8_t*)recv_msg, len * 8);
+	sa->sadb_msg = (struct sadb_msg*)(sa->data);
+	len -= (sizeof(struct sadb_msg) / 8);
+
+	struct sadb_ext* sadb_ext = (struct sadb_ext*)(sa->data + sizeof(struct sadb_msg));
 	while(len) {
 		switch(sadb_ext->sadb_ext_type) {
 			case SADB_EXT_RESERVED:

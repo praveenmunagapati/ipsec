@@ -15,8 +15,8 @@ typedef struct _SAD {
 
 SAD* sad_create();
 void sad_delete(SAD* sad);
-SA* sad_get_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol);
-SA* sad_get_sa_ip(SAD* sad, IP* ip);
+SA* sad_get_sa_inbound(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol);
+SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* ip);
 bool sad_add_sa(SAD* sad, SA* sa);
 SA* sad_remove_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol);
 #endif

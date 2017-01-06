@@ -52,12 +52,12 @@ bool sapd_add_sa(SAPD* sapd, SA* sa) {
 	return sad_add_sa(sapd->sad, sa);
 }
 
-SA* sapd_get_sa(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol) {
-	return sad_get_sa(sapd->sad, spi, dest_address, protocol);
+SA* sapd_get_sa_inbound(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol) {
+	return sad_get_sa_inbound(sapd->sad, spi, dest_address, protocol);
 }
 
-SA* sapd_get_sa_ip(SAPD* sapd, IP* ip) {
-	return sad_get_sa_ip(sapd->sad, ip);
+SA* sapd_get_sa_outbound(SAPD* sapd, struct sadb_x_ipsecrequest* ipsecrequest, IP* ip) {
+	return sad_get_sa_outbound(sapd->sad, ipsecrequest, ip);
 }
 
 SA* sapd_remove_sa(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol) {

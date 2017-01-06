@@ -1,6 +1,8 @@
 #ifndef __SA_H__
 #define __SA_H__
 #include <linux/pfkeyv2.h>
+#include <linux/ipsec.h>
+#include <netinet/in.h>
 #include <stdint.h>
 
 // typedef enum {
@@ -29,6 +31,7 @@
 // } SA_ATTRIBUTES;
 
 typedef struct _SA {
+	struct sadb_msg* sadb_msg;
 	struct sadb_sa* sa;
 	struct sadb_lifetime* lifetime_current; //current
 	struct sadb_lifetime* lifetime_hard; //hard
@@ -42,7 +45,6 @@ typedef struct _SA {
 	struct sadb_ident* identity_dst;
 	struct sadb_sens* sensitivity;
 	struct sadb_x_sa2* x_sa2;
-	uint16_t len;
 	uint8_t data[0];
 // 	
 // 

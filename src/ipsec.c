@@ -11,8 +11,6 @@
 #include <linux/ipsec.h>
 #include <netinet/in.h>
 
-// #undef	IP_TTL
-// #include <net/ip.h>
 #define AUTH_DATA_LEN 	128
 
 #include <sapd.h>
@@ -295,7 +293,7 @@ static bool inbound_process(Packet* packet) {
 			case IP_PROTOCOL_ESP:
 				;
 				ESP* esp = (ESP*)ip->body;
-				sa = sapd_get_sa(sapd, endian32(esp->spi), endian32(ip->destination), ip->protocol);
+				sa = sapd_get_sa_inbound(sapd, endian32(esp->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
 					return false;
 				}
@@ -308,7 +306,7 @@ static bool inbound_process(Packet* packet) {
 			case IP_PROTOCOL_AH:
 				;
 				AH* ah = (AH*)ip->body;
-				sa = sapd_get_sa(sapd, endian32(ah->spi), endian32(ip->destination), ip->protocol);
+				sa = sapd_get_sa_inbound(sapd, endian32(ah->spi), endian32(ip->destination), ip->protocol);
 				if(!sa) {
 					return false;
 				}
@@ -340,7 +338,6 @@ static bool inbound_process(Packet* packet) {
 static bool outbound_process(SP* sp, Packet* packet) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
-	SA* sa = NULL;
 
 	bool transport_set(uint16_t header_len) {
 		if(packet->start > header_len) {
@@ -419,8 +416,56 @@ static bool outbound_process(SP* sp, Packet* packet) {
 		return true;
 	}
 
-	bool ipsec_encrypt(SA* sa) {
-		//TODO fix here
+	bool esp_process(struct sadb_x_ipsecrequest* ipsecrequest, SA* sa) {
+		// Setting tail for ESP -- Start
+		uint16_t iv_len = crypto_get_iv_len(sa->sa->sadb_sa_encrypt);
+		uint16_t padding_len = (endian16(ip->length) - (ip->ihl * 4) + ESP_TRAILER_LEN) % iv_len;
+		if(padding_len != 0)
+			padding_len = iv_len - padding_len;
+		if(!tail_set(padding_len + ESP_TRAILER_LEN)) {
+			return false;
+		}
+
+		ESP_T* esp_trailer = (ESP_T*)(ip->body + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
+		esp_trailer->pad_len = padding_len;
+		switch(ipsecrequest->sadb_x_ipsecrequest_mode) {
+			case IPSEC_MODE_TRANSPORT:
+				esp_trailer->next_hdr = ip->protocol;
+				break;
+			case IPSEC_MODE_TUNNEL:
+				esp_trailer->next_hdr = IP_PROTOCOL_IP;
+				break;
+		}
+		// Setting tail for ESP -- End
+
+		// Setting head for ESP -- Start
+		switch(ipsecrequest->sadb_x_ipsecrequest_mode) {
+			case IPSEC_MODE_TRANSPORT:
+				if(!transport_set(ESP_HEADER_LEN)) {
+					return false;
+				}
+				break;
+			case IPSEC_MODE_TUNNEL:
+				if(!tunnel_set(ESP_HEADER_LEN)) {
+					return false;
+				}
+				ip->ttl = IPDEFTTL;
+				struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
+				ip->source = endian32(sockaddr->sin_addr.s_addr);
+				sockaddr++;
+				ip->destination = endian32(sockaddr->sin_addr.s_addr);
+				break;
+			default:
+				return false;
+		}
+		// Setting head for ESP -- End
+
+		// Setting IP Header
+		ip->protocol = IP_PROTOCOL_ESP;
+		ip->checksum = 0;
+		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
+
+		// Request Encryption
 		ESP* esp = (ESP*)ip->body;
 		uint32_t length = endian16(ip->length) - (ip->ihl * 4) - ESP_HEADER_LEN;
 		crypto_encrypt(sa->sa->sadb_sa_encrypt, esp->payload, length, (uint8_t*)sa->key_encrypt + sizeof(*sa->key_encrypt), sa->key_encrypt->sadb_key_bits / 8);
@@ -432,182 +477,74 @@ static bool outbound_process(SP* sp, Packet* packet) {
 			auth_request(sa->sa->sadb_sa_auth, ip->body + len, ip->body, len, (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8);
 		}
 
-		ip->protocol = IP_PROTOCOL_ESP;
-		// 5. Seq# Validation
-		//TODO set window
-		// 	esp->seq_num = endian32(window_get_seq_counter(sa->window));
 		return true;
 	}
 
-	bool ipsec_auth(SA* sa) {
-		AH* ah = NULL;
-
-		//TODO fix here auth_len
-		uint16_t auth_len = 0;
-		if(sa->address_proxy) {
-			if(!tunnel_set(12 + auth_len))
+	bool ah_process(struct sadb_x_ipsecrequest* ipsecrequest, SA* sa) {
+		// Setting head for AH -- Start
+		uint16_t auth_data_len = auth_auth_data_len(sa->sa->sadb_sa_auth);
+		switch(ipsecrequest->sadb_x_ipsecrequest_mode) {
+			case IPSEC_MODE_TRANSPORT:
+				if(!transport_set(AH_HEADER_LEN + auth_data_len)) {
+					return false;
+				}
+				break;
+			case IPSEC_MODE_TUNNEL:
+				if(!tunnel_set(AH_HEADER_LEN + auth_data_len)) {
+					return false;
+				}
+				ip->ttl = IPDEFTTL;
+				struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
+				ip->source = endian32(sockaddr->sin_addr.s_addr);
+				sockaddr++;
+				ip->destination = endian32(sockaddr->sin_addr.s_addr);
+				break;
+			default:
 				return false;
-
-			ah = (AH*)ip->body;
-
-			//ip->length = endian16(endian16(ip->length) + IP_LEN + AH_HEADER_LEN + ICV_LEN);
-			ah->next_hdr = IP_PROTOCOL_IP;
-		} else {
-			if(!transport_set(12 + auth_len))
-				return false;
-
-			ah = (AH*)ip->body;
-
-			//ip->length = endian16(endian16(ip->length) + AH_HEADER_LEN + ICV_LEN);
-			ah->next_hdr = ip->protocol;
 		}
+		// Setting head for AH -- End
 
-		ah->len = ((12 + auth_len) / 4) - 2;
+		// Setting IP Header
+		ip->protocol = IP_PROTOCOL_AH;
+		ip->checksum = 0;
+		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
+
+		// Setting AH Header
+		AH* ah = (AH*)ip->body;
+		switch(ipsecrequest->sadb_x_ipsecrequest_mode) {
+			case IPSEC_MODE_TRANSPORT:
+				ah->next_hdr = ip->protocol;
+				break;
+			case IPSEC_MODE_TUNNEL:
+				ah->next_hdr = IP_PROTOCOL_IP;
+				break;
+			default:
+				return false;
+		}
+		ah->len = ((12 + auth_data_len) / 4) - 2;
 		ah->spi = sa->sa->sadb_sa_spi;
-		//TODO fix here
-		// 	ah->seq_num = endian32(++sa->window->seq_counter);
+		memset(ah->auth_data, 0, auth_data_len);
 
+		// Request Authentication
 		uint8_t ecn = ip->ecn;
 		uint8_t dscp = ip->dscp;
 		uint8_t ttl = ip->ttl;
 		uint16_t flags_offset = ip->flags_offset;
+		uint16_t checksum = ip->checksum;
 
 		ip->ecn = 0;
 		ip->dscp = 0;
 		ip->ttl = 0;
-		ip->protocol = IP_PROTOCOL_AH;
 		ip->flags_offset = 0;
 		ip->checksum = 0;
-		memset(ah->auth_data, 0, ICV_LEN);
 
 		auth_request(sa->sa->sadb_sa_auth, ah->auth_data, (uint8_t*)ip, endian16(ip->length), (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8);
 
 		ip->ecn = ecn;
 		ip->dscp = dscp;
-		if(sa->address_proxy) {
-			ip->ttl = IP_TTL;
-		} else {
-			ip->ttl = ttl - 1;
-		}
+		ip->ttl = ttl;
 		ip->flags_offset = flags_offset;
-
-		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
-
-		return true;
-	}
-
-	bool transport_process(struct sadb_x_ipsecrequest* ipsecrequest) {
-		sa = sp_get_sa_cache(sp, ip);
-		if(!sa) {
-			sa = sapd_get_sa(sapd, sa->sa->sadb_sa_spi, endian32(ip->source), endian32(ip->destination));
-		}
-
-		if(!sa)
-			return false;
-
-		switch(ipsecrequest->sadb_x_ipsecrequest_proto) {
-			case IP_PROTOCOL_ESP:
-				;
-				//TODO fix: iv_len
-				uint16_t iv_len = 0;
-				uint16_t padding_len = (endian16(ip->length) - (ip->ihl * 4) + ESP_TRAILER_LEN) % iv_len;
-				if(padding_len != 0)
-					padding_len = iv_len - padding_len;
-				if(!tail_set(padding_len + ESP_TRAILER_LEN)) {
-					return false;
-				}
-
-				ESP_T* esp_trailer = (ESP_T*)(ip->body + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
-				esp_trailer->pad_len = padding_len;
-				esp_trailer->next_hdr = ip->protocol;
-
-				if(!transport_set(ESP_HEADER_LEN)) {
-					return false;
-				}
-
-				if(!ipsec_encrypt(sa)) {
-					return false;
-				}
-				break;
-			case IP_PROTOCOL_AH:
-				if(!transport_set(AH_HEADER_LEN)) {
-					return false;
-				}
-				if(!ipsec_auth(sa)) {
-					return false;
-				}
-				break;
-			default:
-				return false;
-		}
-
-		ip->ttl--;
-		ip->checksum = 0;
-		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
-		return true;
-	}
-
-	bool tunnel_process(struct sadb_x_ipsecrequest* ipsecrequest) {
-		SA* sa = sp_get_sa_cache(sp, ip);
-		if(!sa)
-			return false;
-
-		struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
-		uint32_t t_src_addr = sockaddr->sin_addr.s_addr;
-		sockaddr++;
-		uint32_t t_dst_addr = sockaddr->sin_addr.s_addr;
-		if(!sa) {
-			sa = sapd_get_sa(sapd, sa->sa->sadb_sa_spi, t_src_addr, t_dst_addr);
-		}
-		if(!sa)
-			return false;
-
-		switch(ipsecrequest->sadb_x_ipsecrequest_proto) {
-			case IP_PROTOCOL_ESP:
-				;
-				//TODO fix: iv_len
-				uint16_t iv_len = 0;
-				uint16_t padding_len = (endian16(ip->length) - (ip->ihl * 4) + ESP_TRAILER_LEN) % iv_len;
-				if(padding_len != 0)
-					padding_len = iv_len - padding_len;
-				if(!tail_set(padding_len + ESP_TRAILER_LEN)) {
-					return false;
-				}
-
-				ESP_T* esp_trailer = (ESP_T*)(ip->body + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
-				esp_trailer->pad_len = padding_len;
-				esp_trailer->next_hdr = IP_PROTOCOL_IP;
-
-				if(!tunnel_set(ESP_HEADER_LEN)) {
-					return false;
-				}
-
-				break;
-			case IP_PROTOCOL_AH:
-				break;
-			default:
-				return false;
-		}
-
-		//TODO fix here
-// 		uint16_t iv_len = iv_get_len(sa->);
-// 		uint16_t padding_len = (endian16(ip->length) + ESP_TRAILER_LEN) % iv_len;
-// 		if(padding_len != 0)
-// 			padding_len = iv_len - padding_len;
-// 		//TODO fix: iv_len
-// 		if(!transport_set(packet, header_len, tail_len)) {
-// 			return false;
-// 		}
-
-		//TODO tunnel set
-		ether = (Ether*)(packet->buffer + packet->start);
-		ip = (IP*)ether->payload;
-
-		ip->ttl = IP_TTL;
-		ip->source = endian32(t_src_addr);
-		ip->destination = endian32(t_dst_addr);
-		ip->checksum = 0;
-		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
+		ip->checksum = checksum;
 
 		return true;
 	}
@@ -615,20 +552,27 @@ static bool outbound_process(SP* sp, Packet* packet) {
 	int len = sp->policy->sadb_x_policy_len * 8 - sizeof(*sp->policy);
 	struct sadb_x_ipsecrequest* ipsecrequest = (struct sadb_x_ipsecrequest*)((uint8_t*)sp->policy + sizeof(struct sadb_x_ipsecrequest));
 	while(len) {
-		switch(ipsecrequest->sadb_x_ipsecrequest_mode) {
-			case IPSEC_MODE_TRANSPORT:
-				if(!transport_process(ipsecrequest))
-					return false;
+		SA* sa = sp_get_sa_cache(sp, ip);
+		if(!sa)
+			return false;
+
+		if(!sa)
+			sa = sapd_get_sa_outbound(sapd, ipsecrequest, ip);
+
+		if(!sa)
+			return false;
+
+		switch(ipsecrequest->sadb_x_ipsecrequest_proto) {
+			case IP_PROTOCOL_ESP:
+				esp_process(ipsecrequest, sa);
 				break;
-			case IPSEC_MODE_TUNNEL:
-				if(!tunnel_process(ipsecrequest))
-					return false;
+			case IP_PROTOCOL_AH:
+				ah_process(ipsecrequest, sa);
 				break;
-			default:
-				return false;
 		}
 
 		len -= ipsecrequest->sadb_x_ipsecrequest_len;
+		ipsecrequest = (struct sadb_x_ipsecrequest*)((uint8_t*)ipsecrequest + ipsecrequest->sadb_x_ipsecrequest_len * 8);
 	}
 
 	return true;

@@ -710,6 +710,31 @@ static bool _hmac_ripemd160_check(uint8_t* target, uint8_t* source, uint16_t len
 // 	return false;
 }
 
+int auth_auth_data_len(uint8_t algorithm) {
+	switch(algorithm) {
+		case SADB_AALG_NONE:
+			return 0;
+		case SADB_AALG_MD5HMAC:
+			return HMAC_MD5_AUTH_DATA_LEN;
+		case SADB_AALG_SHA1HMAC:
+			return HMAC_SHA1_AUTH_DATA_LEN;
+		case SADB_X_AALG_SHA2_256HMAC:
+			return HMAC_SHA256_AUTH_DATA_LEN;
+		case SADB_X_AALG_SHA2_384HMAC:
+			return HMAC_SHA384_AUTH_DATA_LEN;
+		case SADB_X_AALG_SHA2_512HMAC:
+			return HMAC_SHA512_AUTH_DATA_LEN;
+		case SADB_X_AALG_RIPEMD160HMAC:
+			return HMAC_RIPEMD160_AUTH_DATA_LEN;
+		case SADB_X_AALG_AES_XCBC_MAC:
+			return 0;
+		case SADB_X_AALG_NULL:
+			return 0;
+	}
+
+	return 0;
+}
+
 void auth_request(uint8_t algorithm, uint8_t* target, uint8_t* source, uint16_t len, uint8_t* key, uint16_t key_len) {
 	switch(algorithm) {
 		case SADB_AALG_NONE:

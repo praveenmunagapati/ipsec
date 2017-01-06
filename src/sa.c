@@ -4,8 +4,6 @@
 #undef DONT_MAKE_WRAPPER
 #include <string.h>
 #include <net/ip.h>
-#include <netinet/in.h>
-#include <linux/ipsec.h>
 
 #include "sa.h"
 #include <byteswap.h>
@@ -135,8 +133,32 @@ void sa_dump(SA* sa) {
 		}	
 	}
 
+	char* print_sa_type(uint8_t satype) {
+		switch(satype) {
+			case SADB_SATYPE_UNSPEC:
+				return "UNSPEC";
+			case SADB_SATYPE_AH:
+				return "AH";
+			case SADB_SATYPE_ESP:
+				return "ESP";
+			case SADB_SATYPE_RSVP:
+				return "RSVP";
+			case SADB_SATYPE_OSPFV2:
+				return "OSPFV2";
+			case SADB_SATYPE_RIPV2:
+				return "RIPV2";
+			case SADB_SATYPE_MIP:
+				return "MIP";
+			case SADB_X_SATYPE_IPCOMP:
+				return "IPCOMP";
+			default:
+				return "INVALID";
+		}
+	}
+
 	printf("======================================\n");
-	printf("Policy:\n");
+	printf("Authotication:\n");
+	printf("\tSA Type:\t\t%s\n", print_sa_type(sa->sadb_msg->sadb_msg_satype));
 	printf("\tSPI:\t\t0x%x\n", bswap_32(sa->sa->sadb_sa_spi));
 	printf("\tAuth:\t\t%s\n", print_sadb_auth(sa->sa->sadb_sa_auth));
 	printf("\tEncryption:\t%s\n", print_sadb_encrypt(sa->sa->sadb_sa_encrypt));

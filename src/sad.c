@@ -35,7 +35,7 @@ void sad_delete(SAD* sad) {
 	__free(sad, __gmalloc_pool);
 }
 
-SA* sad_get_sa_ip(SAD* sad, IP* ip) {
+SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* ip) {
 	rwlock_rlock(&sad->rwlock);
 	MapIterator iter;
 	map_iterator_init(&iter, sad->database);
@@ -48,21 +48,46 @@ SA* sad_get_sa_ip(SAD* sad, IP* ip) {
 		while(map_iterator_has_next(&iter2)) {
 			MapEntry* entry2 = map_iterator_next(&iter);
 			SA* sa = entry2->data;
+			//check mode
+			if(sa->x_sa2->sadb_x_sa2_mode != ipsecrequest->sadb_x_ipsecrequest_mode)
+				continue;
 
-			struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
-			struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
-			//TODO fix here
-			if(src_sockaddr->sin_addr.s_addr == endian32(ip->source) && 
-					dst_sockaddr->sin_addr.s_addr == endian32(ip->destination)) {
-				return sa;
-			}
+			//check protocol
+			//TODO check here
+			if(!((sa->sadb_msg->sadb_msg_satype == SADB_SATYPE_AH) && ipsecrequest->sadb_x_ipsecrequest_proto == IP_PROTOCOL_AH) &&
+				!((sa->sadb_msg->sadb_msg_satype == SADB_SATYPE_ESP) && ipsecrequest->sadb_x_ipsecrequest_proto == IP_PROTOCOL_ESP))
+				continue;
+
+			//check address
+			if(sa->x_sa2->sadb_x_sa2_mode == IPSEC_MODE_TRANSPORT) {
+				struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
+				if(src_sockaddr->sin_addr.s_addr != endian32(ip->source))
+					continue;
+
+				struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
+				if(dst_sockaddr->sin_addr.s_addr != endian32(ip->destination))
+					continue;
+			} else if(sa->x_sa2->sadb_x_sa2_mode == IPSEC_MODE_TUNNEL) {
+				struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
+				struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
+				if(src_sockaddr->sin_addr.s_addr != sockaddr->sin_addr.s_addr)
+					continue;
+
+				struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
+				sockaddr++;
+				if(dst_sockaddr->sin_addr.s_addr != sockaddr->sin_addr.s_addr)
+					continue;
+			} else
+				continue;
+
+			return sa;
 		}
 	}
 
 	return NULL;
 }
 
-SA* sad_get_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol) {
+SA* sad_get_sa_inbound(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol) {
 	rwlock_rlock(&sad->rwlock);
 	Map* _sad = map_get(sad->database, (void*)(uint64_t)spi);
 	if(!_sad) {

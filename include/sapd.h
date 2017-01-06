@@ -20,8 +20,8 @@ void sapd_delete();
 bool sapd_check(void* shared_memory);
 
 bool sapd_add_sa(SAPD* sapd, SA* sa);
-SA* sapd_get_sa(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol);
-SA* sapd_get_sa_ip(SAPD* sapd, IP* ip);
+SA* sapd_get_sa_inbound(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol);
+SA* sapd_get_sa_outbound(SAPD* sapd, struct sadb_x_ipsecrequest* ipsecrequest, IP* ip);
 SA* sapd_remove_sa(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol);
 
 bool sapd_add_sp(SAPD* sapd, SP* sp);
