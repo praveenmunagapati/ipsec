@@ -83,6 +83,7 @@ static bool sadb_add_process(int fd, SAPD* sapd, struct sadb_msg* recv_msg) {
 			case SADB_EXT_SA:
 				sadb_sa = (struct sadb_sa*)sadb_ext;
 				break;
+			case SADB_EXT_LIFETIME_CURRENT:
 			case SADB_EXT_LIFETIME_HARD:
 			case SADB_EXT_LIFETIME_SOFT:
 				break;
@@ -92,9 +93,17 @@ static bool sadb_add_process(int fd, SAPD* sapd, struct sadb_msg* recv_msg) {
 			case SADB_EXT_ADDRESS_DST:
 				sadb_address_destination = (struct sadb_address*)sadb_ext;
 				break;
+			case SADB_EXT_ADDRESS_PROXY:
+				break;
+			case SADB_EXT_KEY_AUTH:
+				break;
+			case SADB_EXT_KEY_ENCRYPT:
+				break;
 			case SADB_EXT_IDENTITY_SRC:
 			case SADB_EXT_IDENTITY_DST:
 			case SADB_EXT_SENSITIVITY:
+				break;
+			case SADB_X_EXT_SA2:
 				break;
 			default:
 				DEBUG_PRINT("Error: sadb_ext_type = %d\n", sadb_ext->sadb_ext_type);
@@ -299,7 +308,7 @@ static bool sadb_expire_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 }
 
 static bool sadb_flush_process(SAPD* sapd, struct sadb_msg* recv_msg) {
-	//TODO remove all
+	sad_flush(sapd->sad);
 
 	return true;
 }
@@ -418,6 +427,7 @@ static bool sadb_x_spddump_process(SAPD* sapd, struct sadb_msg* recv_msg) {
 }
 
 static bool sadb_x_spdflush_process(SAPD* sapd, struct sadb_msg* recv_msg) {
+	spd_flush(sapd->spd);
 	return true;
 }
 

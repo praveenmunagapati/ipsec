@@ -40,6 +40,13 @@ void sapd_delete(SAPD* sapd) {
 	__free(sapd, __gmalloc_pool);
 }
 
+void sapd_flush(SAPD* sapd) {
+	printf("Flush SAD\n");
+	sad_flush(sapd->sad);
+	printf("Flush SPD\n");
+	spd_flush(sapd->spd);
+}
+
 bool sapd_check(void* shared_memory) {
 	SAPD* sapd = (SAPD*)shared_memory;
 	if(!strncmp(sapd->magic, MAGIC_STRING, strlen(MAGIC_STRING)))
@@ -52,8 +59,8 @@ bool sapd_add_sa(SAPD* sapd, SA* sa) {
 	return sad_add_sa(sapd->sad, sa);
 }
 
-SA* sapd_get_sa_inbound(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol) {
-	return sad_get_sa_inbound(sapd->sad, spi, dest_address, protocol);
+SA* sapd_get_sa_inbound(SAPD* sapd, IP* ip) {
+	return sad_get_sa_inbound(sapd->sad, ip);
 }
 
 SA* sapd_get_sa_outbound(SAPD* sapd, struct sadb_x_ipsecrequest* ipsecrequest, IP* ip) {

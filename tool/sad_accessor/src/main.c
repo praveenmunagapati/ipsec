@@ -38,6 +38,9 @@ void load_process(int vmid) {
 		printf("Wrong SAPD\n");
 		goto exit;
 	}
+	printf("Flush SAPD\n");
+	sapd_flush(sapd);
+	printf("Flushed SAPD\n");
 
 	int sadb_fd = sadb_connect();
 	if(sadb_fd < 0) {

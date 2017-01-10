@@ -9,7 +9,11 @@
 #include <netinet/in.h>
 #include <net/ether.h>
 
+#include "esp.h"
+#include "ah.h"
 #include "sad.h"
+
+#include <byteswap.h>
 
 extern void* __gmalloc_pool;
 SAD* sad_create() {
@@ -35,8 +39,8 @@ void sad_delete(SAD* sad) {
 	__free(sad, __gmalloc_pool);
 }
 
-SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* ip) {
-	rwlock_rlock(&sad->rwlock);
+void sad_flush(SAD* sad) {
+	rwlock_wlock(&sad->rwlock);
 	MapIterator iter;
 	map_iterator_init(&iter, sad->database);
 	while(map_iterator_has_next(&iter)) {
@@ -48,6 +52,28 @@ SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* 
 		while(map_iterator_has_next(&iter2)) {
 			MapEntry* entry2 = map_iterator_next(&iter);
 			SA* sa = entry2->data;
+#ifdef DEBUG
+			sa_dump(sa);
+#endif
+			sa_free(sa);
+		}
+	}
+	rwlock_wunlock(&sad->rwlock);
+}
+
+SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* ip) {
+	rwlock_rlock(&sad->rwlock);
+	MapIterator iter;
+	map_iterator_init(&iter, sad->database);
+	while(map_iterator_has_next(&iter)) {
+		MapEntry* entry = map_iterator_next(&iter);
+		Map* _sad = entry->data;
+
+		MapIterator iter2;
+		map_iterator_init(&iter2, _sad);
+		while(map_iterator_has_next(&iter2)) {
+			MapEntry* entry2 = map_iterator_next(&iter2);
+			SA* sa = entry2->data;
 			//check mode
 			if(sa->x_sa2->sadb_x_sa2_mode != ipsecrequest->sadb_x_ipsecrequest_mode)
 				continue;
@@ -58,15 +84,20 @@ SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* 
 				!((sa->sadb_msg->sadb_msg_satype == SADB_SATYPE_ESP) && ipsecrequest->sadb_x_ipsecrequest_proto == IP_PROTOCOL_ESP))
 				continue;
 
-			//check address
+			//Add mask
 			if(sa->x_sa2->sadb_x_sa2_mode == IPSEC_MODE_TRANSPORT) {
 				struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
-				if(src_sockaddr->sin_addr.s_addr != endian32(ip->source))
+				uint32_t s_addr = src_sockaddr->sin_addr.s_addr;
+				if(s_addr != ip->source) {
 					continue;
+				}
 
 				struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
-				if(dst_sockaddr->sin_addr.s_addr != endian32(ip->destination))
+				uint32_t d_addr = dst_sockaddr->sin_addr.s_addr;
+				if(d_addr != ip->destination) {
 					continue;
+				}
+
 			} else if(sa->x_sa2->sadb_x_sa2_mode == IPSEC_MODE_TUNNEL) {
 				struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
 				struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
@@ -80,26 +111,48 @@ SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* 
 			} else
 				continue;
 
+			rwlock_runlock(&sad->rwlock);
 			return sa;
 		}
 	}
 
+	rwlock_runlock(&sad->rwlock);
 	return NULL;
 }
 
-SA* sad_get_sa_inbound(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protocol) {
+SA* sad_get_sa_inbound(SAD* sad, IP* ip) {
+	uint32_t spi;
+	switch(ip->protocol) {
+		case IP_PROTOCOL_ESP:
+			;
+			ESP* esp = (ESP*)ip->body;
+			spi = esp->spi;
+			break;
+		case IP_PROTOCOL_AH:
+			;
+			AH* ah = (AH*)ip->body;
+			spi = ah->spi;
+			break;
+		default:
+			return NULL;
+	}
+
 	rwlock_rlock(&sad->rwlock);
 	Map* _sad = map_get(sad->database, (void*)(uint64_t)spi);
 	if(!_sad) {
+		rwlock_runlock(&sad->rwlock);
 		return NULL;
 	}
 
-	SA* sa = map_get(_sad, (void*)((uint64_t)dest_address << 8 | (uint64_t)protocol));
-	rwlock_runlock(&sad->rwlock);
+	SA* sa = map_get(_sad, (void*)((uint64_t)ip->destination << 8 | (uint64_t)ip->protocol));
+	if(!sa)
+		sa = map_get(_sad, (void*)((uint64_t)ip->destination << 8 | 0));
 
 #ifdef DEBUG
-	sa_dump(sa);
+	if(!sa)
+		sa_dump(sa);
 #endif
+	rwlock_runlock(&sad->rwlock);
 
 	return sa;
 }
@@ -136,10 +189,10 @@ bool sad_add_sa(SAD* sad, SA* sa) {
 		return false;
 	}
 
-	rwlock_wunlock(&sad->rwlock);
 #ifdef DEBUG
 	sa_dump(sa);
 #endif
+	rwlock_wunlock(&sad->rwlock);
 
 	return true;
 }
@@ -148,6 +201,7 @@ SA* sad_remove_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protoco
 	rwlock_wlock(&sad->rwlock);
 	Map* _sad = map_get(sad->database, (void*)(uint64_t)spi);
 	if(!_sad) {
+		rwlock_wunlock(&sad->rwlock);
 		return NULL;
 	}
 
@@ -162,10 +216,10 @@ SA* sad_remove_sa(SAD* sad, uint32_t spi, uint32_t dest_address, uint8_t protoco
 		map_destroy(_sad);
 	}
 
-	rwlock_wunlock(&sad->rwlock);
 #ifdef DEBUG
 	sa_dump(sa);
 #endif
+	rwlock_wunlock(&sad->rwlock);
 
 	return sa;
 }

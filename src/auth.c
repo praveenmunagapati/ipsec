@@ -146,7 +146,7 @@ err:
 }
 
 #define HMAC_MD5_AUTH_DATA_LEN	12
-inline void _hmac_md5_request(uint8_t* target, uint8_t* source, uint16_t len, uint8_t* key, uint16_t key_len) {
+static void _hmac_md5_request(uint8_t* target, uint8_t* source, uint16_t len, uint8_t* key, uint16_t key_len) {
 	unsigned char* result = _HMAC(EVP_md5(), key, key_len, source, len, NULL, NULL);
 	memcpy(target, result, HMAC_MD5_AUTH_DATA_LEN);
 // 	unsigned char* result;
@@ -279,7 +279,7 @@ static void _hmac_sha1_request(uint8_t* target, uint8_t* source, uint16_t len, u
 	return;
 }
 
-inline bool _hmac_sha1_check(uint8_t* target, uint8_t* source, uint16_t len, uint8_t* key, uint16_t key_len) {
+static bool _hmac_sha1_check(uint8_t* target, uint8_t* source, uint16_t len, uint8_t* key, uint16_t key_len) {
 	unsigned char* result = _HMAC(EVP_sha1(), key, key_len, source, len, NULL, NULL);
 	return !!memcmp(target, result, HMAC_SHA1_AUTH_DATA_LEN);
 
