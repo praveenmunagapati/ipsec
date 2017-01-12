@@ -54,6 +54,7 @@ void spd_flush(SPD* spd) {
 		sp_dump(sp);
 #endif
 		sp_free(sp);
+		list_iterator_remove(&iter);
 	}
 	rwlock_wunlock(&spd->rwlock);
 }

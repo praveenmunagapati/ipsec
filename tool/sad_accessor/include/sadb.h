@@ -9,6 +9,5 @@ bool sadb_process(int fd, SAPD* sapd);
 
 bool sadb_dump(int fd);
 bool sadb_x_spddump(int fd);
-bool sadb_get(int fd, struct sadb_sa* sa, struct sadb_address* source, struct sadb_address* destination);
 
 #endif /*__SADB_H__*/

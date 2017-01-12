@@ -111,9 +111,9 @@ void ipsec_spddump() {
 }
 
 void dump_packet(Packet* packet) {
-	for(int i = packet->start; i < packet->end; i++) {
-		for(int j = 16; i < packet->end && j < 16; j++, i++)
-			printf("%02x", packet->buffer + i);
+	for(int i = packet->start; i < packet->end;) {
+		for(int j = 0; i < packet->end && j < 32; j++, i++)
+			printf("%02x", *(uint8_t*)(packet->buffer + i));
 		printf("\n");
 	}
 }
@@ -153,14 +153,24 @@ static bool inbound_process(Packet* packet) {
 	bool ipsec_decrypt(SA* sa) { 
 		ESP* esp = (ESP*)ip->body;
 
-		uint16_t len = endian16(ip->length) - ip->ihl * 4;
+		uint16_t len = endian16(ip->length) - ip->ihl * 4; //ip body len
 		if(sa->sa->sadb_sa_auth != SADB_EALG_NONE) {
+			printf("auth\n");
 			uint16_t auth_len = len - auth_auth_data_len(sa->sa->sadb_sa_auth);
 			if(!auth_check(sa->sa->sadb_sa_auth, ip->body + auth_len, ip->body, auth_len, (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8)) {
 				return false;
 			}
 		}
 
+		void print_key(uint8_t* key, int key_len) {
+			printf("0x");
+			for(int i = 0; i < key_len; i++) {
+				printf("%02x", key[i] & 0xff);
+			}
+			printf("\n");
+		}
+		printf("key dump\n");
+ 		print_key((uint8_t*)sa->key_encrypt + sizeof(*sa->key_encrypt), sa->key_encrypt->sadb_key_bits / 8);
 		crypto_decrypt(sa->sa->sadb_sa_encrypt, esp->payload, len - ESP_HEADER_LEN, (uint8_t*)sa->key_encrypt + sizeof(*sa->key_encrypt), sa->key_encrypt->sadb_key_bits / 8); 
 
 		return true;
@@ -201,28 +211,22 @@ static bool inbound_process(Packet* packet) {
 			return false;
 		}
 
-		dump_packet(packet);
-
 		// unsetting Header
-		ESP_T* esp_trailer = (ESP_T*)((uint8_t*)ip + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
+		ESP_T* esp_trailer = (ESP_T*)((uint8_t*)ip + endian16(ip->length) - ESP_TRAILER_LEN);
+		int iv_len = crypto_get_iv_len(sa->sa->sadb_sa_encrypt);
 		switch(sa->x_sa2->sadb_x_sa2_mode) {
 			case IPSEC_MODE_TUNNEL:
 				//TODO length check
-				if(!tunnel_unset(ESP_HEADER_LEN))
+				if(!tunnel_unset(ESP_HEADER_LEN + iv_len))
 					return false;
 
 				break;
 			case IPSEC_MODE_TRANSPORT:
 				//TODO length check
-				//TODO add get iv len
-				if(!transport_unset(ESP_HEADER_LEN))
+				if(!transport_unset(ESP_HEADER_LEN + iv_len))
 					return false;
 
-				dump_packet(packet);
-
 				ip->protocol = esp_trailer->next_hdr;
-				ip->checksum = 0;
-				ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
 				break;
 			default:
@@ -232,6 +236,8 @@ static bool inbound_process(Packet* packet) {
 		// unsetting Tail
 		uint8_t tail_len = esp_trailer->pad_len + ESP_TRAILER_LEN;
 		tail_unset(tail_len);
+		ip->checksum = 0;
+		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
 		return true;
 	}
@@ -292,8 +298,6 @@ static bool inbound_process(Packet* packet) {
 		default:
 			return false;
 	}
-	ether = (Ether*)(packet->buffer + packet->start);
-	ip = (IP*)ether->payload;
 
 	// 6. SPD Lookup 
 	uint32_t src_address = endian32(ip->source);
@@ -311,27 +315,12 @@ static bool outbound_process(SP* sp, Packet* packet) {
         IP* ip = (IP*)ether->payload;
 
 	bool transport_set(uint16_t header_len) {
-		if(packet->start > header_len) {
-			ip->length = endian16(endian16(ip->length) + header_len);
-			packet->start -= header_len;
+		ip->length = endian16(endian16(ip->length) + header_len);
+		packet->start -= header_len;
 
-			memmove(packet->buffer + packet->start, ether, ETHER_LEN + ip->ihl * 4);
-			ether = (Ether*)(packet->buffer + packet->start);
-			ip = (IP*)ether->payload;
-
-			return true;
-		} else if(packet->end + header_len < packet->size) {
-			ip->length = endian16(endian16(ip->length) + header_len);
-			memmove(ip->body + header_len, ip->body, ip->length - ip->ihl * 4 /* Body length*/);
-			return true;
-		} else if(packet->size > (packet->end - packet->start + header_len)) {
-			//TODO fix here
-			return false;
-		} else {
-			printf("Worst Case\n");
-			return false;
-		}
-
+		memmove(packet->buffer + packet->start, ether, ETHER_LEN + ip->ihl * 4);
+		ether = (Ether*)(packet->buffer + packet->start);
+		ip = (IP*)ether->payload;
 		return true;
 	}
 
@@ -368,22 +357,8 @@ static bool outbound_process(SP* sp, Packet* packet) {
 	}
 
 	bool tail_set(uint16_t tail_len) {
-		if(packet->size > packet->end + tail_len) {
-			unsigned char* padding = NULL;
-			padding = packet->buffer + packet->end;
-			for(int i = 0; i < tail_len; i++) {
-				padding[i] = i + 1;
-			}
-			packet->end += tail_len;
-		} else if(packet->start > tail_len) {
-			memmove((uint8_t*)ether - tail_len, ether, packet->end - packet->start);
-			packet->start -= tail_len;
-			ether = (Ether*)(packet->buffer + packet->start);
-			ip = (IP*)ether->payload;
-		} else {
-			printf("packet has not enough padding\n");
-			return false;
-		}
+		packet->end += tail_len;
+		ip->length = endian16(endian16(ip->length) + tail_len);
 		return true;
 	}
 
@@ -397,7 +372,7 @@ static bool outbound_process(SP* sp, Packet* packet) {
 			return false;
 		}
 
-		ESP_T* esp_trailer = (ESP_T*)(ip->body + endian16(ip->length) - (ip->ihl * 4) - ESP_TRAILER_LEN);
+		ESP_T* esp_trailer = (ESP_T*)((uint8_t*)ip + endian16(ip->length) - ESP_TRAILER_LEN);
 		esp_trailer->pad_len = padding_len;
 		switch(ipsecrequest->sadb_x_ipsecrequest_mode) {
 			case IPSEC_MODE_TRANSPORT:
@@ -412,29 +387,25 @@ static bool outbound_process(SP* sp, Packet* packet) {
 		// Setting head for ESP -- Start
 		switch(ipsecrequest->sadb_x_ipsecrequest_mode) {
 			case IPSEC_MODE_TRANSPORT:
-				if(!transport_set(ESP_HEADER_LEN)) {
+				if(!transport_set(ESP_HEADER_LEN + iv_len)) {
 					return false;
 				}
 				break;
 			case IPSEC_MODE_TUNNEL:
-				if(!tunnel_set(ESP_HEADER_LEN)) {
+				if(!tunnel_set(ESP_HEADER_LEN + iv_len)) {
 					return false;
 				}
 				ip->ttl = IPDEFTTL;
 				struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
-				ip->source = endian32(sockaddr->sin_addr.s_addr);
+				ip->source = sockaddr->sin_addr.s_addr;
 				sockaddr++;
-				ip->destination = endian32(sockaddr->sin_addr.s_addr);
+				ip->destination = sockaddr->sin_addr.s_addr;
 				break;
 			default:
 				return false;
 		}
-		// Setting head for ESP -- End
-
-		// Setting IP Header
 		ip->protocol = IP_PROTOCOL_ESP;
-		ip->checksum = 0;
-		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
+		// Setting head for ESP -- End
 
 		// Request Encryption
 		ESP* esp = (ESP*)ip->body;
@@ -443,11 +414,20 @@ static bool outbound_process(SP* sp, Packet* packet) {
 		esp->spi = sa->sa->sadb_sa_spi;
 		esp->seq_num = 0;
 
+		// Authenticate -- Start
 		if(sa->sa->sadb_sa_auth != SADB_AALG_NONE) {
-			//TODO Tail Length add AUTH_DATA_LEN
+			uint16_t auth_data_len = auth_auth_data_len(sa->sa->sadb_sa_auth);
+			if(!tail_set(auth_data_len))
+				return false;
+
 			uint16_t len = ip->length - (ip->ihl * 4);
 			auth_request(sa->sa->sadb_sa_auth, ip->body + len, ip->body, len, (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8);
 		}
+		// Authenticate -- End
+
+		// Setting IP Header
+		ip->checksum = 0;
+		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
 		return true;
 	}

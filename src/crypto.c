@@ -11,6 +11,8 @@ typedef struct _DES_Payload {
 } __attribute__ ((packed)) DES_Payload;
 
 void _des_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	DES_key_schedule ks;
+	DES_set_key_checked((DES_cblock*)key, &ks);
 	DES_Payload* des_payload = (DES_Payload*)payload;
 
 	uint64_t iv;
@@ -19,15 +21,17 @@ void _des_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key
 
 	DES_ncbc_encrypt((const unsigned char *)des_payload->ep, 
 			(unsigned char *)des_payload->ep,
-			len - sizeof(DES_Payload), (DES_key_schedule*)key, (unsigned char(*)[8])&iv, DES_ENCRYPT);
+			len - sizeof(DES_Payload), &ks, (unsigned char(*)[8])&iv, DES_ENCRYPT);
 }
 
 static void _des_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	DES_key_schedule ks;
+	DES_set_key_checked((DES_cblock*)key, &ks);
 	DES_Payload* des_payload = (DES_Payload*)payload;
 
 	DES_ncbc_encrypt((const unsigned char *)des_payload->ep, 
 			(unsigned char *)des_payload->ep,
-			len - sizeof(DES_Payload), (DES_key_schedule*)key, (unsigned char(*)[8])&(des_payload->iv), DES_DECRYPT);
+			len - sizeof(DES_Payload), &ks, (unsigned char(*)[8])&(des_payload->iv), DES_DECRYPT);
 }
 
 // Key Length : 24 Bytes
@@ -37,25 +41,35 @@ typedef struct __3DES_Payload {
 } __attribute__ ((packed)) _3DES_Payload;
 
 void _3des_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	DES_key_schedule ks[3];
+	DES_cblock* des_cblock = (void*)key; //Why?
+	for(int i = 0; i < 3; i++) {
+		DES_set_key_checked(&des_cblock[i], &ks[i]);
+	}
 	_3DES_Payload* _3des_payload = (_3DES_Payload*)payload;
 
 	uint64_t iv;
 	RAND_bytes((unsigned char*)(&iv), 8);
 	_3des_payload->iv = iv;
 
-	DES_key_schedule* ks_3 = (DES_key_schedule*)key;
 	DES_ede3_cbc_encrypt((const unsigned char*)_3des_payload->ep,
 			(unsigned char*)_3des_payload->ep, 
-			len - sizeof(_3DES_Payload), &ks_3[0], &ks_3[1], &ks_3[2], (unsigned char(*)[8])&iv, DES_ENCRYPT);
+			len - sizeof(_3DES_Payload), &ks[0], &ks[1], &ks[2], (unsigned char(*)[8])&iv, DES_ENCRYPT);
 }
 
 void _3des_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	DES_key_schedule ks[3];
+	DES_cblock* des_cblock = (void*)key; //Why?
+	for(int i = 0; i < 3; i++) {
+		DES_set_key_checked(&des_cblock[i], &ks[i]);
+	}
+	
 	_3DES_Payload* _3des_payload = (_3DES_Payload*)payload;
 
-	DES_key_schedule* ks_3 = (DES_key_schedule*)key;
+	//DES_key_schedule* ks_3 = (DES_key_schedule*)key;
 	DES_ede3_cbc_encrypt((const unsigned char*)_3des_payload->ep, 
 			(unsigned char*)_3des_payload->ep, 
-			len - sizeof(_3DES_Payload), &ks_3[0], &ks_3[1], &ks_3[2], (unsigned char(*)[8])&(_3des_payload->iv), DES_DECRYPT);
+			len - sizeof(_3DES_Payload), &ks[0], &ks[1], &ks[2], (unsigned char(*)[8])&(_3des_payload->iv), DES_DECRYPT);
 }
 
 
@@ -66,6 +80,8 @@ typedef struct _Blowfish_Payload {
 } __attribute__ ((packed)) Blowfish_Payload;
 
 void _blowfish_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	BF_KEY bf_key;
+	BF_set_key(&bf_key, key_len, (const unsigned char*)key);
 	Blowfish_Payload* blowfish_payload = (Blowfish_Payload*)payload;
 
 	uint64_t iv;
@@ -74,15 +90,17 @@ void _blowfish_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_
 	
 	BF_cbc_encrypt((const unsigned char *)blowfish_payload->ep, 
 			(unsigned char *)blowfish_payload->ep, 
-			len - sizeof(Blowfish_Payload), (BF_KEY*)key, (unsigned char*)(&iv), BF_ENCRYPT);
+			len - sizeof(Blowfish_Payload), &bf_key, (unsigned char*)(&iv), BF_ENCRYPT);
 }
 
 void _blowfish_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	BF_KEY bf_key;
+	BF_set_key(&bf_key, key_len, (const unsigned char*)key);
 	Blowfish_Payload* blowfish_payload = (Blowfish_Payload*)payload;
 
 	BF_cbc_encrypt((const unsigned char *)blowfish_payload->ep, 
 			(unsigned char *)blowfish_payload->ep, 
-			len - sizeof(Blowfish_Payload), (BF_KEY*)key, (unsigned char*)(&(blowfish_payload->iv)), BF_DECRYPT);
+			len - sizeof(Blowfish_Payload), &bf_key, (unsigned char*)(&(blowfish_payload->iv)), BF_DECRYPT);
 }
 
 // Key Length : 5 ~ 56 Bytes (Default : 16 Bytes)
@@ -92,6 +110,8 @@ typedef struct _Cast128_Payload {
 } __attribute__ ((packed)) Cast128_Payload;
 
 void _cast128_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	CAST_KEY cast_key;
+	CAST_set_key(&cast_key, key_len, (const unsigned char*)key);
 	Cast128_Payload* cast128_payload = (Cast128_Payload*)payload;
 
 	uint64_t iv;
@@ -100,15 +120,17 @@ void _cast128_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t
 
 	CAST_cbc_encrypt((const unsigned char *)cast128_payload->ep,
 			(unsigned char *)cast128_payload->ep,
-			len - sizeof(Cast128_Payload), (CAST_KEY*)key, (unsigned char *)&iv, CAST_ENCRYPT);
+			len - sizeof(Cast128_Payload), &cast_key, (unsigned char *)&iv, CAST_ENCRYPT);
 }
 
 void _cast128_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	CAST_KEY cast_key;
+	CAST_set_key(&cast_key, key_len, (const unsigned char*)key);
 	Cast128_Payload* cast128_payload = (Cast128_Payload*)payload;
 
 	CAST_cbc_encrypt((const unsigned char *)cast128_payload->ep, 
 			(unsigned char *)cast128_payload->ep, 
-			len - sizeof(Cast128_Payload), (CAST_KEY*)key, (unsigned char *)(&(cast128_payload->iv)), CAST_DECRYPT);
+			len - sizeof(Cast128_Payload), &cast_key, (unsigned char *)(&(cast128_payload->iv)), CAST_DECRYPT);
 }
 
 // static void _des_deriv_encrypt(ESP* esp, size_t size, SA_ESP* sa){
@@ -131,6 +153,8 @@ typedef struct _Rijndael_CBC_Payload {
 } __attribute__ ((packed)) Rijndael_CBC_Payload;
 
 void _rijndael_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	AES_KEY aes_key;
+	AES_set_encrypt_key((const unsigned char*)key, key_len * 8, &aes_key);
 	Rijndael_CBC_Payload* rijndael_payload = (Rijndael_CBC_Payload*)payload;
 
 	uint64_t iv[2];
@@ -139,15 +163,17 @@ void _rijndael_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_
 	
 	AES_cbc_encrypt((const unsigned char *)rijndael_payload->ep,
 			(unsigned char *)rijndael_payload->ep,
-			len - sizeof(Rijndael_CBC_Payload), (AES_KEY*)key, (unsigned char *)(&iv), AES_ENCRYPT);
+			len - sizeof(Rijndael_CBC_Payload), &aes_key, (unsigned char *)(&iv), AES_ENCRYPT);
 }
 
 void _rijndael_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	AES_KEY aes_key;
+	AES_set_decrypt_key((const unsigned char*)key, key_len * 8, &aes_key);
 	Rijndael_CBC_Payload* rijndael_payload = (Rijndael_CBC_Payload*)payload;
 
 	AES_cbc_encrypt((const unsigned char *)rijndael_payload->ep, 
 			(unsigned char *)rijndael_payload->ep, 
-			len - sizeof(Rijndael_CBC_Payload), (AES_KEY*)key, (unsigned char*)(&(rijndael_payload->iv)), AES_DECRYPT);
+			len - sizeof(Rijndael_CBC_Payload), &aes_key, (unsigned char*)(&(rijndael_payload->iv)), AES_DECRYPT);
 }
 
 /*
@@ -190,6 +216,8 @@ uint32_t get_nonce(void* key, uint16_t key_len) {
 }
 
 void _aes_ctr_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	AES_KEY aes_key;
+	AES_set_encrypt_key((const unsigned char*)key, (key_len - 4) * 8, &aes_key);
 	AES_CTR_Payload* aes_payload = (AES_CTR_Payload*)payload;
 
 	uint64_t iv;
@@ -198,11 +226,11 @@ void _aes_ctr_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key
 
 	uint8_t ctr_block[16];
 	//TODO set_key_len
-	uint32_t nonce = get_nonce(key, key_len);
+	uint32_t nonce = get_nonce(&aes_key, key_len);
 	for(int i = 1; (i - 1) * 16 < len - sizeof(AES_CTR_Payload); i++) {
 		init_ctr_block((uint32_t*)ctr_block, nonce, aes_payload->iv, i);
 
-		AES_encrypt((const unsigned char*)ctr_block, (unsigned char*)ctr_block, (AES_KEY*)key);
+		AES_encrypt((const unsigned char*)ctr_block, (unsigned char*)ctr_block, &aes_key);
 
 		for(int j = 0 ;j < 16 && ((i - 1) * 16 + j) < len - sizeof(AES_CTR_Payload); j++) {
 			*(((uint8_t*)aes_payload->ep + ((i - 1) * 16) + j)) ^= ctr_block[j];
@@ -211,15 +239,17 @@ void _aes_ctr_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key
 }
 
 void _aes_ctr_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	AES_KEY aes_key;
+	AES_set_encrypt_key((const unsigned char*)key, (key_len - 4) * 8, &aes_key);
 	AES_CTR_Payload* aes_payload = (AES_CTR_Payload*)payload;
 
 	uint8_t ctr_block[16];
 	//TODO set_key_len
-	uint32_t nonce = get_nonce(key, key_len);
+	uint32_t nonce = get_nonce(&aes_key, key_len);
 	for(int i = 1; (i - 1) * 16 < len - sizeof(AES_CTR_Payload); i++) {
 		init_ctr_block((uint32_t*)ctr_block, nonce, aes_payload->iv, i);
 
-		AES_encrypt((const unsigned char*)ctr_block, (unsigned char*)ctr_block, (AES_KEY*)key);
+		AES_encrypt((const unsigned char*)ctr_block, (unsigned char*)ctr_block, &aes_key);
 
 		for(int j = 0 ;j < 16 && ((i - 1) * 16 + j) < len - sizeof(AES_CTR_Payload); j++) {
 			*(((uint8_t*)aes_payload->ep + ((i - 1) * 16) + j)) ^= ctr_block[j];
@@ -235,6 +265,8 @@ typedef struct _Camellia_CBC_Payload {
 } __attribute__ ((packed)) Camellia_CBC_Payload;
 
 void _camellia_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	CAMELLIA_KEY camellia_key;
+	Camellia_set_key(key, key_len * 8, &camellia_key);
 	Camellia_CBC_Payload* camellia_payload = (Camellia_CBC_Payload*)payload;
 
 	uint64_t iv[2];
@@ -243,15 +275,17 @@ void _camellia_cbc_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_
 	
 	Camellia_cbc_encrypt((const unsigned char *)camellia_payload->ep,
 			(unsigned char *)camellia_payload->ep,
-			len - sizeof(Camellia_CBC_Payload), (CAMELLIA_KEY*)key, (unsigned char *)iv, CAMELLIA_ENCRYPT);
+			len - sizeof(Camellia_CBC_Payload), &camellia_key, (unsigned char *)iv, CAMELLIA_ENCRYPT);
 }
 
 void _camellia_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
+	CAMELLIA_KEY camellia_key;
+	Camellia_set_key(key, key_len * 8, &camellia_key);
 	Camellia_CBC_Payload* camellia_payload = (Camellia_CBC_Payload*)payload;
 
 	Camellia_cbc_encrypt((const unsigned char *)camellia_payload->ep, 
 			(unsigned char *)camellia_payload->ep, 
-			len - sizeof(Camellia_CBC_Payload), (CAMELLIA_KEY*)key, (unsigned char *)camellia_payload->iv, CAMELLIA_DECRYPT);
+			len - sizeof(Camellia_CBC_Payload), &camellia_key, (unsigned char *)camellia_payload->iv, CAMELLIA_DECRYPT);
 }
 // 
 // Cryptography cryptographys[] = {

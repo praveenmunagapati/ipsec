@@ -4,6 +4,7 @@
 *.bak
 build/*
 ipsec
+tags
 tool/sad_accessor/build
 tool/sad_accessor/sad_accessor
-tags
+tool/sad_accessor/tags

@@ -41,10 +41,12 @@ void sapd_delete(SAPD* sapd) {
 }
 
 void sapd_flush(SAPD* sapd) {
-	printf("Flush SAD\n");
+	printf("Flushing SAD...\n");
 	sad_flush(sapd->sad);
-	printf("Flush SPD\n");
+	printf("Flushied\n");
+	printf("Flushing SPD...\n");
 	spd_flush(sapd->spd);
+	printf("Flushied\n");
 }
 
 bool sapd_check(void* shared_memory) {
@@ -80,6 +82,6 @@ SP* sapd_get_sp(SAPD* sapd, uint32_t policy, uint32_t src_address, uint32_t dest
 }
 
 SP* sapd_remove_sp(SAPD* sapd, uint32_t policy, uint32_t src_address, uint32_t dest_address) {
-	return spd_get_sp(sapd->spd, policy, src_address, dest_address);
+	return spd_remove_sp(sapd->spd, policy, src_address, dest_address);
 }
 

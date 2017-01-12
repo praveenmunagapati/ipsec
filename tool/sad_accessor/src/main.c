@@ -38,9 +38,9 @@ void load_process(int vmid) {
 		printf("Wrong SAPD\n");
 		goto exit;
 	}
-	printf("Flush SAPD\n");
+	printf("Flushing SAPD...\n");
 	sapd_flush(sapd);
-	printf("Flushed SAPD\n");
+	printf("Flushed\n");
 
 	int sadb_fd = sadb_connect();
 	if(sadb_fd < 0) {
@@ -50,32 +50,32 @@ void load_process(int vmid) {
 	fd_set input;
 	FD_ZERO(&input);
 	FD_SET(sadb_fd, &input);
+	printf("Copying SA Database...\n");
 	if(!sadb_dump(sadb_fd))
 		goto exit;
+	printf("Copying SP Database...\n");
 	if(!sadb_x_spddump(sadb_fd))
 		goto exit;
 
-	printf("Start\n");
 	while(1) {
 		int status = pn_assistant_get_vm_status(vmid);
 		if(status == VM_STATUS_STOP || status == VM_STATUS_INVALID)
 			goto exit;
 
-// 		struct timeval time;
-// 		fd_set temp_input = input;
-// 		time.tv_sec = 0;
-// 		time.tv_usec = 1000;
-// 
-// 		int retval = select(sadb_fd + 1, &temp_input, 0, 0, &time);
-// 		if(retval == -1)
-// 			break;
-// 		else if(retval == 0) {
-// 			if(FD_ISSET(sadb_fd, &temp_input)) {
-// 				printf("here?\n");
+		struct timeval time;
+		fd_set temp_input = input;
+		time.tv_sec = 0;
+		time.tv_usec = 1000000; // 1 mili second delay
+
+		int retval = select(sadb_fd + 1, &temp_input, 0, 0, &time);
+		if(retval == -1)
+			break;
+		else if(retval) {
+			if(FD_ISSET(sadb_fd, &temp_input)) {
 				if(!sadb_process(sadb_fd, sapd))
 					break;
-// 			}
-// 		}
+			}
+		}
 	}
 
 exit:

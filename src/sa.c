@@ -20,7 +20,7 @@ SA* sa_alloc(int data_size) {
 }
 
 void sa_free(SA* sa) {
-	free(sa);
+	__free(sa, __gmalloc_pool);
 }
 
 void sa_dump(SA* sa) {
@@ -166,18 +166,18 @@ void sa_dump(SA* sa) {
  	printf("\tProtocol:\t%s\n", print_ip_protocol(sa->address_src->sadb_address_proto));
  	struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
  	uint8_t* src_addr = (uint8_t*)&(src_sockaddr->sin_addr.s_addr);
- 	printf("\tAddress:\t%u.%u.%u.%u\n", src_addr[0], src_addr[1], src_addr[2], src_addr[3]);
+ 	printf("\tAddress:\t%u.%u.%u.%u/%d\n", src_addr[0], src_addr[1], src_addr[2], src_addr[3], sa->address_src->sadb_address_prefixlen);
  	printf("Dst Address:\n");
  	printf("\tProtocol:\t%s\n", print_ip_protocol(sa->address_dst->sadb_address_proto));
  	struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
  	uint8_t* dst_addr = (uint8_t*)&(dst_sockaddr->sin_addr.s_addr);
- 	printf("\tAddress:\t%u.%u.%u.%u\n", dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
+ 	printf("\tAddress:\t%u.%u.%u.%u/%d\n", dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3], sa->address_dst->sadb_address_prefixlen);
  	if(sa->address_proxy) {
  		printf("Proxy Address:\n");
  		printf("\tProtocol:\t%s\n", print_ip_protocol(sa->address_proxy->sadb_address_proto));
  		struct sockaddr_in* proxy_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_proxy + sizeof(*sa->address_proxy));
  		uint8_t* proxy_addr = (uint8_t*)&(proxy_sockaddr->sin_addr.s_addr);
- 		printf("\tAddress:\t%u.%u.%u.%u\n", proxy_addr[0], proxy_addr[1], proxy_addr[2], proxy_addr[3]);
+ 		printf("\tAddress:\t%u.%u.%u.%u/%d\n", proxy_addr[0], proxy_addr[1], proxy_addr[2], proxy_addr[3], sa->address_proxy->sadb_address_prefixlen);
  	}
  	if(sa->key_auth) {
  		printf("Authentication Key:\n");
