@@ -41,12 +41,8 @@ void sapd_delete(SAPD* sapd) {
 }
 
 void sapd_flush(SAPD* sapd) {
-	printf("Flushing SAD...\n");
 	sad_flush(sapd->sad);
-	printf("Flushied\n");
-	printf("Flushing SPD...\n");
 	spd_flush(sapd->spd);
-	printf("Flushied\n");
 }
 
 bool sapd_check(void* shared_memory) {

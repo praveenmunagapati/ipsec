@@ -17,50 +17,73 @@
 
 
 void load_process(int vmid) { 
+	int sadb_fd = 0;
+
+	printf("Mapping Global Heap...");
 	if(!pn_assistant_mapping_global_heap(vmid)) {
+		printf("Fail\n");
 		return;
 	}
+	printf("OK\n");
 
+	printf("Setting GMalloc Pool...");
 	extern void* __gmalloc_pool;
 	__gmalloc_pool =  pn_assistant_get_gmalloc_pool(vmid);
 	if(!__gmalloc_pool) {
-		printf("Can't Get Gmalloc Pool\n");
+		printf("Fail\n");
 		goto exit;
 	}
+	printf("OK\n");
 
+	printf("Setting SAPD...");
 	SAPD* sapd = pn_assistant_get_shared(vmid);
 	if(!sapd) {
-		printf("Can't Get Shared Memory\n");
+		printf("Fail\n");
 		goto exit;
 	}
+	printf("OK\n");
 
+	printf("Checking SAPD...");
 	if(!sapd_check((void*)sapd)) {
-		printf("Wrong SAPD\n");
+		printf("Fail\n");
 		goto exit;
 	}
+	printf("OK\n");
+
 	printf("Flushing SAPD...\n");
 	sapd_flush(sapd);
-	printf("Flushed\n");
 
-	int sadb_fd = sadb_connect();
+	printf("Connecting SADB...");
+	sadb_fd = sadb_connect();
 	if(sadb_fd < 0) {
+		printf("Fail\n");
 		goto exit;
 	}
+	printf("OK\n");
 
 	fd_set input;
 	FD_ZERO(&input);
 	FD_SET(sadb_fd, &input);
-	printf("Copying SA Database...\n");
-	if(!sadb_dump(sadb_fd))
+	printf("Copying SA Database...");
+	if(!sadb_dump(sadb_fd)) {
+		printf("Fail\n");
 		goto exit;
-	printf("Copying SP Database...\n");
-	if(!sadb_x_spddump(sadb_fd))
+	}
+	printf("OK\n");
+
+	printf("Copying SP Database...");
+	if(!sadb_x_spddump(sadb_fd)) {
+		printf("Fail\n");
 		goto exit;
+	}
+	printf("OK\n");
 
 	while(1) {
 		int status = pn_assistant_get_vm_status(vmid);
-		if(status == VM_STATUS_STOP || status == VM_STATUS_INVALID)
+		if(status == VM_STATUS_STOP || status == VM_STATUS_INVALID) {
+			printf("IPSec is not working\n");
 			goto exit;
+		}
 
 		struct timeval time;
 		fd_set temp_input = input;
@@ -68,18 +91,25 @@ void load_process(int vmid) {
 		time.tv_usec = 1000000; // 1 mili second delay
 
 		int retval = select(sadb_fd + 1, &temp_input, 0, 0, &time);
-		if(retval == -1)
-			break;
-		else if(retval) {
+		if(retval == -1) {
+			printf("Select Error\n");
+			goto exit;
+		} else if(retval) {
 			if(FD_ISSET(sadb_fd, &temp_input)) {
-				if(!sadb_process(sadb_fd, sapd))
-					break;
+				if(!sadb_process(sadb_fd, sapd)) {
+					printf("SADB Process Error\n");
+					goto exit;
+				}
 			}
 		}
 	}
 
 exit:
-	printf("SAPD Exit\n");
+	printf("Unmapping Global Heap...\n");
+	if(sadb_fd)
+		close(sadb_fd);
+	__gmalloc_pool = NULL;
+	pn_assistant_unmapping_global_heap();
 	return;
 }
 
@@ -106,16 +136,14 @@ int main(int argc, char** argv) {
 	pn_assistant_dump_vm(vmid);
 
 	while(1) {
-		int stauts = pn_assistant_get_vm_status(vmid);
-		switch(stauts) {
+		int status = pn_assistant_get_vm_status(vmid);
+		switch(status) {
 			case VM_STATUS_PAUSE:
 			case VM_STATUS_START:
 				load_process(vmid);
 				break;
 			case VM_STATUS_STOP:
 			case VM_STATUS_INVALID:
-				//unload_process(vmid);
-				sleep(1);
 				break;
 		}
 		sleep(1);
