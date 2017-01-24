@@ -1,10 +1,16 @@
+#include <string.h>
+
+#include <openssl/des.h>
+#include <openssl/blowfish.h>
+#include <openssl/cast.h>
+#include <openssl/aes.h>
+#include <openssl/camellia.h>
+#include <openssl/rand.h>
+
 #include <util/types.h>
 #include <linux/pfkeyv2.h>
-#include <stdio.h>
+#include <byteswap.h>
 
-#include "crypto.h"
-
-// Key Length : 8 Bytes
 typedef struct _DES_Payload {
 	uint64_t iv;
 	uint8_t ep[0]; //encrypted payload
@@ -34,7 +40,6 @@ static void _des_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint1
 			len - sizeof(DES_Payload), &ks, (unsigned char(*)[8])&(des_payload->iv), DES_DECRYPT);
 }
 
-// Key Length : 24 Bytes
 typedef struct __3DES_Payload {
 	uint64_t iv;
 	uint8_t ep[0]; //encrypted payload
@@ -72,8 +77,6 @@ void _3des_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t ke
 			len - sizeof(_3DES_Payload), &ks[0], &ks[1], &ks[2], (unsigned char(*)[8])&(_3des_payload->iv), DES_DECRYPT);
 }
 
-
-// Key Length : 5 ~ 56 Bytes (Default : 16 Bytes)
 typedef struct _Blowfish_Payload {
 	uint64_t iv;
 	uint8_t ep[0]; //encrypted payload
@@ -103,7 +106,6 @@ void _blowfish_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_
 			len - sizeof(Blowfish_Payload), &bf_key, (unsigned char*)(&(blowfish_payload->iv)), BF_DECRYPT);
 }
 
-// Key Length : 5 ~ 56 Bytes (Default : 16 Bytes)
 typedef struct _Cast128_Payload {
 	uint64_t iv;
 	uint8_t ep[0]; //encrypted payload
@@ -133,20 +135,6 @@ void _cast128_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t
 			len - sizeof(Cast128_Payload), &cast_key, (unsigned char *)(&(cast128_payload->iv)), CAST_DECRYPT);
 }
 
-// static void _des_deriv_encrypt(ESP* esp, size_t size, SA_ESP* sa){
-// }
-// 
-// static void _des_deriv_decrypt(ESP* esp, size_t size, SA_ESP* sa){
-// }
-// 
-// static void _3des_deriv_encrypt(ESP* esp, size_t size, SA_ESP* sa){
-// }
-// 
-// static void _3des_deriv_decrypt(ESP* esp, size_t size, SA_ESP* sa){
-// }
-// 
-// // TODO : 16 Byte Alighment for Payload
-// Key Length : 16, 24, 32 Bytes (Default : 16 Bytes)
 typedef struct _Rijndael_CBC_Payload {
 	uint64_t iv[2];
 	uint8_t ep[0]; //encrypted payload
@@ -178,7 +166,6 @@ void _rijndael_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_
 
 /*
    Not implemented : No openssl function 
-
    AES and Triple DES are considered to be strong. Blowfish is still a good algorithm but its author (Bruce Schneier) recommends that you should use the "twofish" algorithm instead if available. Unfortunately twofish is not yet available in the list of openssl ciphers.
 */
 // typedef struct _TwoFish_Payload {
@@ -198,17 +185,17 @@ typedef struct _AES_CTR_Payload {
 	uint8_t ep[0]; //encrypted payload
 } __attribute__ ((packed)) AES_CTR_Payload;
 
-int init_ctr_block(uint32_t block[4], uint32_t nonce, uint64_t iv, uint32_t num) {
+static int init_ctr_block(uint32_t block[4], uint32_t nonce, uint64_t iv, uint32_t num) {
 	memset(block, 0, sizeof(uint32_t) * 4);
 
 	block[0] = nonce;
 	memcpy(&block[1], &iv, 8);
-	block[3] = endian32(num);
+	block[3] = bswap_32(num);
 
 	return 0;
 }
 
-uint32_t get_nonce(void* key, uint16_t key_len) {
+static uint32_t get_nonce(uint8_t* key, uint16_t key_len) {
 	uint32_t* nonce;
 	nonce = (uint32_t*)(key + key_len - 4);
 
@@ -217,23 +204,26 @@ uint32_t get_nonce(void* key, uint16_t key_len) {
 
 void _aes_ctr_encrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key_len) {
 	AES_KEY aes_key;
+	printf("key len %d\n", key_len);
 	AES_set_encrypt_key((const unsigned char*)key, (key_len - 4) * 8, &aes_key);
 	AES_CTR_Payload* aes_payload = (AES_CTR_Payload*)payload;
 
 	uint64_t iv;
 	RAND_bytes((unsigned char*)(&iv), 8);
-	memcpy(&(aes_payload->iv), &iv, 8);
+	aes_payload->iv = iv;
 
 	uint8_t ctr_block[16];
-	//TODO set_key_len
-	uint32_t nonce = get_nonce(&aes_key, key_len);
-	for(int i = 1; (i - 1) * 16 < len - sizeof(AES_CTR_Payload); i++) {
+	uint32_t nonce = get_nonce(key, key_len);
+	len -= sizeof(AES_CTR_Payload);
+	uint8_t* ep = aes_payload->ep;
+	for(int i = 1; len > 0; i++) {
 		init_ctr_block((uint32_t*)ctr_block, nonce, aes_payload->iv, i);
 
 		AES_encrypt((const unsigned char*)ctr_block, (unsigned char*)ctr_block, &aes_key);
 
-		for(int j = 0 ;j < 16 && ((i - 1) * 16 + j) < len - sizeof(AES_CTR_Payload); j++) {
-			*(((uint8_t*)aes_payload->ep + ((i - 1) * 16) + j)) ^= ctr_block[j];
+		for(int j = 0; j < 16 && len > 0; j++, len--) {
+			*ep ^= ctr_block[j];
+			ep++;
 		}
 	}
 }
@@ -244,15 +234,17 @@ void _aes_ctr_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_t key
 	AES_CTR_Payload* aes_payload = (AES_CTR_Payload*)payload;
 
 	uint8_t ctr_block[16];
-	//TODO set_key_len
-	uint32_t nonce = get_nonce(&aes_key, key_len);
-	for(int i = 1; (i - 1) * 16 < len - sizeof(AES_CTR_Payload); i++) {
+	uint32_t nonce = get_nonce(key, key_len);
+	len -= sizeof(AES_CTR_Payload);
+	uint8_t* ep = aes_payload->ep;
+	for(int i = 1; len > 0; i++) {
 		init_ctr_block((uint32_t*)ctr_block, nonce, aes_payload->iv, i);
 
 		AES_encrypt((const unsigned char*)ctr_block, (unsigned char*)ctr_block, &aes_key);
 
-		for(int j = 0 ;j < 16 && ((i - 1) * 16 + j) < len - sizeof(AES_CTR_Payload); j++) {
-			*(((uint8_t*)aes_payload->ep + ((i - 1) * 16) + j)) ^= ctr_block[j];
+		for(int j = 0 ;j < 16 && len > 0; j++, len--) {
+			*ep ^= ctr_block[j];
+			ep++;
 		}
 	}
 }
@@ -287,61 +279,7 @@ void _camellia_cbc_decrypt(uint8_t* payload, uint16_t len, uint8_t* key, uint16_
 			(unsigned char *)camellia_payload->ep, 
 			len - sizeof(Camellia_CBC_Payload), &camellia_key, (unsigned char *)camellia_payload->iv, CAMELLIA_DECRYPT);
 }
-// 
-// Cryptography cryptographys[] = {
-// 	{
-// 		.encrypt = _des_cbc_encrypt,
-// 		.decrypt = _des_cbc_decrypt,
-// 		.iv_len = 8
-// 	},
-// 	{
-// 		.encrypt = _3des_cbc_encrypt,
-// 		.decrypt = _3des_cbc_decrypt,
-// 		.iv_len = 8
-// 	},
-// 	{
-// 		.encrypt = _blowfish_cbc_encrypt,
-// 		.decrypt = _blowfish_cbc_decrypt,
-// 		.iv_len = 8
-// 	},
-// 	{
-// 		.encrypt = _cast128_cbc_encrypt,
-// 		.decrypt = _cast128_cbc_decrypt,
-// 		.iv_len = 8
-// 	},
-// 	{
-// 		.encrypt = _des_deriv_encrypt,
-// 		.decrypt = _des_deriv_decrypt,
-// 		.iv_len = 8
-// 	},
-// 	{
-// 		.encrypt = _3des_deriv_encrypt,
-// 		.decrypt = _3des_deriv_decrypt,
-// 		.iv_len = 8
-// 	},
-// 	{
-// 		.encrypt = _rijndael_cbc_encrypt,
-// 		.decrypt = _rijndael_cbc_decrypt,
-// 		.iv_len = 16
-// 	},
-// 	{
-// 		.encrypt = _twofish_cbc_encrypt,
-// 		.decrypt = _twofish_cbc_decrypt,
-// 		.iv_len = 16
-// 	},
-// 	{
-// 		.encrypt = _aes_ctr_encrypt,
-// 		.decrypt = _aes_ctr_decrypt,
-// 		.iv_len = 8
-// 	},
-// 	{
-// 		.encrypt = _camellia_cbc_encrypt,
-// 		.decrypt = _camellia_cbc_decrypt,
-// 		.iv_len = 16
-// 	},
-// };
 
-//TODO check iv_len each algorithm
 int crypto_get_iv_len(uint8_t algorithm) {
 	switch(algorithm) {
 		case SADB_EALG_NONE:	       
@@ -355,7 +293,7 @@ int crypto_get_iv_len(uint8_t algorithm) {
 		case SADB_X_EALG_BLOWFISHCBC:   
 			return 8;
 		case SADB_EALG_NULL:	       
-			return 8;
+			return 0;
 		case SADB_X_EALG_AESCBC:	       
 			return 16;
 		case SADB_X_EALG_AESCTR:	       
@@ -404,7 +342,6 @@ void crypto_encrypt(uint8_t algorithm, uint8_t* payload, uint16_t len, uint8_t* 
 		case SADB_EALG_NULL:	       
 			return;
 		case SADB_X_EALG_AESCBC:	       
-			//?? rijndael???
 			_rijndael_cbc_encrypt(payload, len, key, key_len);
 			return;
 		case SADB_X_EALG_AESCTR:	       

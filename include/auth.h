@@ -4,12 +4,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
-#include <openssl/engine.h>
-#include <net/packet.h>
 
-int auth_auth_data_len(uint8_t algorithm);
-void auth_request(uint8_t protocol, uint8_t* target, uint8_t* source, uint16_t len, uint8_t* key, uint16_t key_len);
-bool auth_check(uint8_t algorithm, uint8_t* target, uint8_t* source, uint16_t len, uint8_t* key, uint8_t key_len);
+int auth_get_icv_len(uint8_t algorithm);
+int auth_get_authdata_len(uint8_t algorithm);
+void auth_request(uint8_t algorithm, uint8_t* target, uint16_t t_len, uint8_t* source, uint16_t s_len, uint8_t* key, uint16_t key_len);
+bool auth_check(uint8_t algorithm, uint8_t* target, uint16_t t_len, uint8_t* source, uint16_t s_len, uint8_t* key, uint8_t key_len);
 #endif 

@@ -72,17 +72,19 @@ bool route_add(uint32_t addr, uint32_t netmask, uint32_t gw, NIC* dev) {
 		return false;
 	}
 
-	if(!gw) {
-		src = addr;
-		goto next;
-	} else {
-		MapIterator iter;
-		map_iterator_init(&iter, interfaces);
-		while(map_iterator_has_next(&iter)) {
-			MapEntry* entry = map_iterator_next(&iter);
-			uint32_t _addr = (uint32_t)(uint64_t)entry->key;
-			//IPv4Interface* interface = entry->data;
+	MapIterator iter;
+	map_iterator_init(&iter, interfaces);
+	while(map_iterator_has_next(&iter)) {
+		MapEntry* entry = map_iterator_next(&iter);
+		uint32_t _addr = (uint32_t)(uint64_t)entry->key;
+		//IPv4Interface* interface = entry->data;
+		if(gw) {
 			if((_addr & netmask) == (gw & netmask)) {
+				src = _addr;
+				goto next;
+			}
+		} else {
+			if((_addr & netmask) == (addr & netmask)) {
 				src = _addr;
 				goto next;
 			}

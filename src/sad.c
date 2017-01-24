@@ -82,42 +82,23 @@ SA* sad_get_sa_outbound(SAD* sad, struct sadb_x_ipsecrequest* ipsecrequest, IP* 
 				continue;
 
 			//check protocol
-			//TODO check here
 			if(!((sa->sadb_msg->sadb_msg_satype == SADB_SATYPE_AH) && ipsecrequest->sadb_x_ipsecrequest_proto == IP_PROTOCOL_AH) &&
 				!((sa->sadb_msg->sadb_msg_satype == SADB_SATYPE_ESP) && ipsecrequest->sadb_x_ipsecrequest_proto == IP_PROTOCOL_ESP))
 				continue;
 
 			//Add mask
-			if(sa->x_sa2->sadb_x_sa2_mode == IPSEC_MODE_TRANSPORT) {
-				struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
-				uint32_t src_mask = (uint32_t)0xffffffff >> (32 - sa->address_src->sadb_address_prefixlen);
-				uint32_t s_addr = src_sockaddr->sin_addr.s_addr;
-				if((s_addr & src_mask) != (ip->source & src_mask)) {
-					printf("here1 %x %x\n", (s_addr & src_mask), (ip->source & src_mask));
-					continue;
-				}
-				uint32_t dst_mask = (uint32_t)0xffffffff >> (32 - sa->address_dst->sadb_address_prefixlen);
-				struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
-				uint32_t d_addr = dst_sockaddr->sin_addr.s_addr;
-				if((d_addr & dst_mask) != (ip->destination & dst_mask)) {
-					printf("here2 %x %x\n", (d_addr & dst_mask), (ip->destination & dst_mask));
-					continue;
-				}
-
-			} else if(sa->x_sa2->sadb_x_sa2_mode == IPSEC_MODE_TUNNEL) {
-				struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
-				uint32_t src_mask = (uint32_t)0xffffffff >> (32 - sa->address_src->sadb_address_prefixlen);
-				struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
-				if((src_sockaddr->sin_addr.s_addr & src_mask) != (sockaddr->sin_addr.s_addr & src_mask))
-					continue;
-
-				uint32_t dst_mask = (uint32_t)0xffffffff >> (32 - sa->address_dst->sadb_address_prefixlen);
-				struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
-				sockaddr++;
-				if((dst_sockaddr->sin_addr.s_addr & dst_mask) != (sockaddr->sin_addr.s_addr & dst_mask))
-					continue;
-			} else
+			struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_src + sizeof(*sa->address_src));
+			uint32_t src_mask = (uint32_t)0xffffffff >> (32 - sa->address_src->sadb_address_prefixlen);
+			uint32_t s_addr = src_sockaddr->sin_addr.s_addr;
+			if((s_addr & src_mask) != (ip->source & src_mask)) {
 				continue;
+			}
+			uint32_t dst_mask = (uint32_t)0xffffffff >> (32 - sa->address_dst->sadb_address_prefixlen);
+			struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sa->address_dst + sizeof(*sa->address_dst));
+			uint32_t d_addr = dst_sockaddr->sin_addr.s_addr;
+			if((d_addr & dst_mask) != (ip->destination & dst_mask)) {
+				continue;
+			}
 
 			rwlock_runlock(&sad->rwlock);
 			return sa;

@@ -26,6 +26,6 @@ SA* sapd_get_sa_outbound(SAPD* sapd, struct sadb_x_ipsecrequest* ipsecrequest, I
 SA* sapd_remove_sa(SAPD* sapd, uint32_t spi, uint32_t dest_address, uint8_t protocol);
 
 bool sapd_add_sp(SAPD* sapd, SP* sp);
-SP* sapd_get_sp(SAPD* sapd, uint32_t policy, uint32_t src_address, uint32_t dest_address);
+SP* sapd_get_sp(SAPD* sapd, uint32_t policy, IP* ip);
 SP* sapd_remove_sp(SAPD* sapd, uint32_t policy, uint32_t src_address, uint32_t dest_address);
 #endif /*__SAPD_H__*/

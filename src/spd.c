@@ -112,8 +112,10 @@ SP* spd_remove_sp(SPD* spd, uint8_t policy, uint32_t src_address, uint32_t dst_a
 	return NULL;
 }
 
-SP* spd_get_sp(SPD* spd, uint8_t policy, uint32_t src_address, uint32_t dst_address) {
+SP* spd_get_sp(SPD* spd, uint8_t policy, IP* ip) {
 	rwlock_rlock(&spd->rwlock);
+	uint32_t src_address = bswap_32(ip->source);
+	uint32_t dst_address = bswap_32(ip->destination);
 
 	ListIterator iter;
 	list_iterator_init(&iter, spd->list);
@@ -136,6 +138,7 @@ SP* spd_get_sp(SPD* spd, uint8_t policy, uint32_t src_address, uint32_t dst_addr
 		if((dst_address & dst_mask) != (bswap_32(dst_address0) & dst_mask))
 			continue;
 
+		//TODO check port
 #ifdef DEBUG
 		sp_dump(sp);
 #endif

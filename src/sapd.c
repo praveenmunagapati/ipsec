@@ -73,8 +73,8 @@ bool sapd_add_sp(SAPD* sapd, SP* sp) {
 	return spd_add_sp(sapd->spd, sp);
 }
 
-SP* sapd_get_sp(SAPD* sapd, uint32_t policy, uint32_t src_address, uint32_t dest_address) {
-	return spd_get_sp(sapd->spd, policy, src_address, dest_address);
+SP* sapd_get_sp(SAPD* sapd, uint32_t policy, IP* ip) {
+	return spd_get_sp(sapd->spd, policy, ip);
 }
 
 SP* sapd_remove_sp(SAPD* sapd, uint32_t policy, uint32_t src_address, uint32_t dest_address) {

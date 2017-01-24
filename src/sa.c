@@ -33,15 +33,15 @@ void sa_dump(SA* sa) {
  			case SADB_AALG_SHA1HMAC:
  				return "SHA1MAC";
  			case SADB_X_AALG_SHA2_256HMAC:
- 				return "SHA2 256HMAC";
+ 				return "SHA2-256HMAC";
  			case SADB_X_AALG_SHA2_384HMAC:
- 				return "SHA2 384HMAC";
+ 				return "SHA2-384HMAC";
  			case SADB_X_AALG_SHA2_512HMAC:
- 				return "SHA2 512HMAC";
+ 				return "SHA2-512HMAC";
  			case SADB_X_AALG_RIPEMD160HMAC:
- 				return "RIPEMD 160HMAC";
+ 				return "RIPEMD-160HMAC";
  			case SADB_X_AALG_AES_XCBC_MAC:
- 				return "AES XCBC MAC";
+ 				return "AES-XCBC-MAC";
  			case SADB_X_AALG_NULL:
  				return "NULL";
  			default:
@@ -54,35 +54,35 @@ void sa_dump(SA* sa) {
  			case SADB_EALG_NONE:
  				return "NONE";
  			case SADB_EALG_DESCBC:
- 				return "DES CBC";
+ 				return "DES-CBC";
  			case SADB_EALG_3DESCBC:
- 				return "3DES CBC";
+ 				return "3DES-CBC";
  			case SADB_X_EALG_CASTCBC:
- 				return "CAST CBC";
+ 				return "CAST-CBC";
  			case SADB_X_EALG_BLOWFISHCBC:
  				return "BLOWFISH CBC";
  			case SADB_EALG_NULL:
  				return "NULL";
  			case SADB_X_EALG_AESCBC:
- 				return "AES CBC";
+ 				return "AES-CBC";
  			case SADB_X_EALG_AESCTR:
- 				return "AES CTR";
+ 				return "AES-CTR";
  			case SADB_X_EALG_AES_CCM_ICV8:
- 				return "AES CCM ICV8";
+ 				return "AES-CCM-ICV8";
  			case SADB_X_EALG_AES_CCM_ICV12:
- 				return "AES CCM ICV12";
+ 				return "AES-CCM-ICV12";
  			case SADB_X_EALG_AES_CCM_ICV16:
- 				return "AES CCM ICV16";
+ 				return "AES-CCM-ICV16";
  			case SADB_X_EALG_AES_GCM_ICV8:
- 				return "AES GCM ICV8";
+ 				return "AES-GCM-ICV8";
  			case SADB_X_EALG_AES_GCM_ICV12:
- 				return "AES GCM ICV12";
+ 				return "AES-GCM-ICV12";
  			case SADB_X_EALG_AES_GCM_ICV16:
- 				return "AES GCM ICV16";
+ 				return "AES-GCM-ICV16";
  			case SADB_X_EALG_CAMELLIACBC:
- 				return "CAMELLIA CBC";
+ 				return "CAMELLIA-CBC";
  			case SADB_X_EALG_NULL_AES_GMAC:
- 				return "NULL AES GMAC";
+ 				return "NULL-AES-GMAC";
  			default:
  				return "INVALID";
  		}
@@ -158,7 +158,7 @@ void sa_dump(SA* sa) {
  
  	printf("======================================\n");
  	printf("Authotication:\n");
- 	printf("\tSA Type:\t\t%s\n", print_sa_type(sa->sadb_msg->sadb_msg_satype));
+ 	printf("\tSA Type:\t%s\n", print_sa_type(sa->sadb_msg->sadb_msg_satype));
  	printf("\tSPI:\t\t0x%x\n", bswap_32(sa->sa->sadb_sa_spi));
  	printf("\tAuth:\t\t%s\n", print_sadb_auth(sa->sa->sadb_sa_auth));
  	printf("\tEncryption:\t%s\n", print_sadb_encrypt(sa->sa->sadb_sa_encrypt));
