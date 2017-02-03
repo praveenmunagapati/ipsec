@@ -10,6 +10,8 @@
 #include <linux/ipsec.h>
 #include <netinet/in.h>
 
+#include <byteswap.h>
+
 #include "sp.h"
 #include "sa.h"
 
@@ -63,8 +65,7 @@ void sp_dump(SP* sp) {
 		if(ipsecrequest->sadb_x_ipsecrequest_mode == IPSEC_MODE_TUNNEL) {
 			struct sockaddr_in* sockaddr = (struct sockaddr_in*)((uint8_t*)ipsecrequest + sizeof(*ipsecrequest));
 			uint8_t* addr = (uint8_t*)&(sockaddr->sin_addr.s_addr);
-			printf("\t\t\tSrc Address:\t%u.%u.%u.%u\n", addr[0], addr[1], addr[2], addr[3]);
-			sockaddr++;
+			printf("\t\t\tSrc Address:\t%u.%u.%u.%u\n", addr[0], addr[1], addr[2], addr[3]); sockaddr++;
 			addr = (uint8_t*)&(sockaddr->sin_addr.s_addr);
 			printf("\t\t\tDst Address:\t%u.%u.%u.%u\n", addr[0], addr[1], addr[2], addr[3]);
 		}
@@ -142,11 +143,13 @@ void sp_dump(SP* sp) {
 	struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sp->address_src + sizeof(*sp->address_src));
 	uint8_t* src_addr = (uint8_t*)&(src_sockaddr->sin_addr.s_addr);
 	printf("\tAddress:\t%u.%u.%u.%u/%d\n", src_addr[0], src_addr[1], src_addr[2], src_addr[3], sp->address_src->sadb_address_prefixlen);
+	printf("\tPort:\t\t%d\n", bswap_16(src_sockaddr->sin_port));
 	printf("Dst Address:\n");
 	printf("\tProtocol:\t%s\n", print_ip_protocol(sp->address_dst->sadb_address_proto));
 	struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sp->address_dst + sizeof(*sp->address_dst));
 	uint8_t* dst_addr = (uint8_t*)&(dst_sockaddr->sin_addr.s_addr);
 	printf("\tAddress:\t%u.%u.%u.%u/%d\n", dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3], sp->address_dst->sadb_address_prefixlen);
+	printf("\tPort:\t\t%d\n", bswap_16(dst_sockaddr->sin_port));
 
 	printf("======================================\n");
 }

@@ -110,14 +110,6 @@ void ipsec_spddump() {
 	rwlock_runlock(&spd->rwlock);
 }
 
-void dump_packet(Packet* packet) {
-	for(int i = packet->start; i < packet->end;) {
-		for(int j = 0; i < packet->end && j < 32; j++, i++)
-			printf("%02x", *(uint8_t*)(packet->buffer + i));
-		printf("\n");
-	}
-}
-
 static bool inbound_process(Packet* packet) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
         IP* ip = (IP*)ether->payload;
@@ -145,26 +137,23 @@ static bool inbound_process(Packet* packet) {
 	}
 
 	bool tail_unset(uint16_t tail_len) {
-		if((endian16(ip->length) - ip->ihl * 4) < tail_len)
-			return false;
-
 		packet->end -= tail_len;
 		ip->length = endian16(endian16(ip->length) - tail_len);
 		return true;
 	}
 
 	bool inbound_esp_process(SA* sa) {
-		ESP* esp = (ESP*)ip->body;
+		ESP* esp = (ESP*)((uint8_t*)ip + ip->ihl * 4);
 
 		// Authenticate -- Start
 		if(sa->sa->sadb_sa_auth != SADB_EALG_NONE) {
 			uint16_t authdata_len = auth_get_authdata_len(sa->sa->sadb_sa_auth);
 			uint16_t auth_len = endian16(ip->length) - ip->ihl * 4 - authdata_len;
 			if(sa->key_auth) {
-				if(!auth_check(sa->sa->sadb_sa_auth, ip->body + auth_len, authdata_len, ip->body, auth_len, (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8)) {
+				if(!auth_check(sa->sa->sadb_sa_auth, (uint8_t*)ip + (ip->ihl * 4) + auth_len, authdata_len, (uint8_t*)ip + ip->ihl * 4, auth_len, (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8)) {
 					return false;
 				}
-			} else if(!auth_check(sa->sa->sadb_sa_auth, ip->body + auth_len, authdata_len, ip->body, auth_len, NULL, 0)) {
+			} else if(!auth_check(sa->sa->sadb_sa_auth, (uint8_t*)ip + (ip->ihl * 4) + auth_len, authdata_len, (uint8_t*)ip + ip->ihl * 4, auth_len, NULL, 0)) {
 					return false;
 			}
 
@@ -197,7 +186,7 @@ static bool inbound_process(Packet* packet) {
 	}
 
 	bool inbound_ah_process(SA* sa) {
-		AH* ah = (AH*)ip->body;
+		AH* ah = (AH*)((uint8_t*)ip + ip->ihl * 4);
 
 		uint8_t ecn = ip->ecn;
 		uint8_t dscp = ip->dscp;
@@ -217,7 +206,9 @@ static bool inbound_process(Packet* packet) {
 		memset(ah->auth_data, 0, authdata_len);
 
 		if(sa->key_auth) {
+			printf("length: %d\n", endian16(ip->length));
 			if(!auth_check(sa->sa->sadb_sa_auth, icv, authdata_len, (uint8_t*)ip, endian16(ip->length), (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8)) {
+				printf("Here?\n");
 				return false;
 			}
 		} else {
@@ -244,22 +235,18 @@ static bool inbound_process(Packet* packet) {
 	   * First version don't support multi encryption and authentication.
 	 */
 	SA* sa = sapd_get_sa_inbound(sapd, ip);
-	if(!sa) {
-		printf("Can't found sa\n");
+	if(!sa)
 		return false;
-	}
 
 	switch(ip->protocol) {
 		case IP_PROTOCOL_ESP:
-			;
-			printf("\tESP Process\n");
+			printf("\tESP\n");
 			if(!inbound_esp_process(sa))
 				return false;
 			break;
 
 		case IP_PROTOCOL_AH:
-			;
-			printf("\tAH Process\n");
+			printf("\tAH\n");
 			if(!inbound_ah_process(sa))
 				return false;
 			break;
@@ -272,9 +259,6 @@ static bool inbound_process(Packet* packet) {
 		if(!tunnel_unset())
 			return false;
 	}
-
-	ip->checksum = 0;
-	ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
 	SP* sp = sapd_get_sp(sapd, IPSEC_POLICY_IPSEC, ip);
 	if(!sp) {
@@ -289,7 +273,7 @@ static bool outbound_process(SP* sp, Packet* packet) {
         IP* ip = (IP*)ether->payload;
 
 	bool ipsec_header_set(uint16_t header_len) {
-		if(packet->start < header_len)
+		if(packet->start <= header_len)
 			return false;
 
 		ip->length = endian16(endian16(ip->length) + header_len);
@@ -304,7 +288,6 @@ static bool outbound_process(SP* sp, Packet* packet) {
 	bool tunnel_set() {
 		if(packet->start <= IP_LEN)
 			return false;
-
 	
 		IP* _ip = ip;
 
@@ -326,7 +309,7 @@ static bool outbound_process(SP* sp, Packet* packet) {
 	}
 
 	bool tail_set(uint16_t tail_len) {
-		if(packet->size - packet->end < tail_len)
+		if(packet->size - packet->end <= tail_len)
 			return false;
 
 		packet->end += tail_len;
@@ -359,7 +342,7 @@ static bool outbound_process(SP* sp, Packet* packet) {
 		// Setting head for ESP -- End
 
 		// Request Encryption
-		ESP* esp = (ESP*)ip->body;
+		ESP* esp = (ESP*)((uint8_t*)ip + ip->ihl * 4);
 		uint32_t length = endian16(ip->length) - (ip->ihl * 4) - ESP_HEADER_LEN;
 		if(sa->key_encrypt)
 			crypto_encrypt(sa->sa->sadb_sa_encrypt, esp->payload, length, (uint8_t*)sa->key_encrypt + sizeof(*sa->key_encrypt), sa->key_encrypt->sadb_key_bits / 8);
@@ -376,15 +359,13 @@ static bool outbound_process(SP* sp, Packet* packet) {
 				return false;
 
 			if(sa->key_auth)
-				auth_request(sa->sa->sadb_sa_auth, ip->body + len, authdata_len, ip->body, len, (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8);
+				auth_request(sa->sa->sadb_sa_auth, (uint8_t*)ip + endian16(ip->length), authdata_len, (uint8_t*)ip + ip->ihl * 4, len, (uint8_t*)sa->key_auth + sizeof(*sa->key_auth), sa->key_auth->sadb_key_bits / 8);
 			else
-				auth_request(sa->sa->sadb_sa_auth, ip->body + len, authdata_len, ip->body, len, NULL, 0);
+				auth_request(sa->sa->sadb_sa_auth, (uint8_t*)ip + endian16(ip->length), authdata_len, (uint8_t*)ip + ip->ihl * 4, len, NULL, 0);
 		}
 		// Authenticate -- End
 
 		// Setting IP Header
-		ip->checksum = 0;
-		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
 		return true;
 	}
@@ -399,7 +380,7 @@ static bool outbound_process(SP* sp, Packet* packet) {
 		// Setting head for AH -- End
 
 		// Setting AH Header
-		AH* ah = (AH*)ip->body;
+		AH* ah = (AH*)((uint8_t*)ip + ip->ihl * 4);
 		ah->next_hdr = ip->protocol;
 		ah->len = ((12 + icv_len) / 4) - 2;
 		ah->spi = sa->sa->sadb_sa_spi;
@@ -409,15 +390,12 @@ static bool outbound_process(SP* sp, Packet* packet) {
 
 		// Setting IP Header
 		ip->protocol = IP_PROTOCOL_AH;
-		ip->checksum = 0;
-		ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 
 		// Request Authentication
 		uint8_t ecn = ip->ecn;
 		uint8_t dscp = ip->dscp;
 		uint8_t ttl = ip->ttl;
 		uint16_t flags_offset = ip->flags_offset;
-		uint16_t checksum = ip->checksum;
 
 		ip->ecn = 0;
 		ip->dscp = 0;
@@ -434,15 +412,43 @@ static bool outbound_process(SP* sp, Packet* packet) {
 		ip->dscp = dscp;
 		ip->ttl = ttl;
 		ip->flags_offset = flags_offset;
-		ip->checksum = checksum;
 
 		return true;
+	}
+
+
+	void _tcp_pack(Packet* packet, uint16_t tcp_body_len) {
+		Ether* _ether = (Ether*)(packet->buffer + packet->start);
+		IP* _ip = (IP*)_ether->payload;
+		TCP* tcp = (TCP*)((uint8_t*)_ip + _ip->ihl * 4);
+
+		uint16_t tcp_len = tcp->offset * 4 + tcp_body_len;
+
+		TCP_Pseudo pseudo;
+		pseudo.source = _ip->source;
+		pseudo.destination = _ip->destination;
+		pseudo.padding = 0;
+		pseudo.protocol = _ip->protocol;
+		pseudo.length = endian16(tcp_len);
+
+		tcp->checksum = 0;
+		uint32_t sum = (uint16_t)~checksum(&pseudo, sizeof(pseudo)) + (uint16_t)~checksum(tcp, tcp_len);
+		while(sum >> 16)
+			sum = (sum & 0xffff) + (sum >> 16);
+		tcp->checksum = endian16(~sum);
+
+		ip_pack(packet, tcp_len);
 	}
 
 	int len = sp->policy->sadb_x_policy_len * 8 - sizeof(*sp->policy);
 	struct sadb_x_ipsecrequest* ipsecrequest = (struct sadb_x_ipsecrequest*)((uint8_t*)sp->policy + sizeof(struct sadb_x_ipsecrequest));
 	while(len) {
 		if(ipsecrequest->sadb_x_ipsecrequest_mode == IPSEC_MODE_TUNNEL) {
+			if(ip->protocol == IP_PROTOCOL_TCP) {
+				TCP* tcp = (TCP*)((uint8_t*)ip + ip->ihl * 4);
+				_tcp_pack(packet, endian16(ip->length) - ip->ihl * 4 - tcp->offset * 4);
+			}
+
 			if(!tunnel_set()) {
 				return false;
 			}
@@ -464,12 +470,12 @@ static bool outbound_process(SP* sp, Packet* packet) {
 		}
 
 		switch(ipsecrequest->sadb_x_ipsecrequest_proto) {
+			printf("\tESP\n");
 			case IP_PROTOCOL_ESP:
-				printf("\tESP Process\n");
 				outbound_esp_process(ipsecrequest, sa);
 				break;
+			printf("\tAH\n");
 			case IP_PROTOCOL_AH:
-				printf("\tAH Process\n");
 				outbound_ah_process(ipsecrequest, sa);
 				break;
 		}
@@ -481,6 +487,17 @@ static bool outbound_process(SP* sp, Packet* packet) {
 	return true;
 }
 
+void dump_packet(Packet* packet) {
+	printf("=============================================\n");
+	for(int i = packet->start; i < packet->end;) {
+		for(int j = 0; j < 16 && i < packet->end; j++, i++) {
+			printf("%02x", *(packet->buffer + i));
+		}
+		printf("\n");
+	}
+	printf("\n");
+	printf("=============================================\n");
+}
 
 bool ipsec_process(Packet* packet) {
 	Ether* ether = (Ether*)(packet->buffer + packet->start);
@@ -496,20 +513,21 @@ bool ipsec_process(Packet* packet) {
 		SP* sp = sapd_get_sp(sapd, IPSEC_POLICY_IPSEC, ip);
 			
 		if(!!sp && sp->policy->sadb_x_policy_dir == IPSEC_DIR_OUTBOUND) {
-			printf("Outbound Process\n");
+			printf("Outbound\n");
 			if(!outbound_process(sp, packet)) { 
 				nic_free(packet);
 				return true;
 			}
 		} else {
-			printf("Inbound Process\n");
+			dump_packet(packet);
+			printf("Inbound\n");
 			if(!inbound_process(packet)) {
 				nic_free(packet);
 				return true;
 			}
 		}
 
-		printf("Route Process\n");
+		printf("Route\n");
 		if(!route_process(packet))
 			nic_free(packet);
 

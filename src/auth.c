@@ -165,6 +165,13 @@ static void _hmac_sha1_request(uint8_t* target, uint16_t t_len, uint8_t* source,
 
 static bool _hmac_sha1_check(uint8_t* target, uint16_t t_len, uint8_t* source, uint16_t s_len, uint8_t* key, uint16_t key_len) {
 	unsigned char* result = _HMAC(EVP_sha1(), key, key_len, source, s_len, NULL, NULL);
+	for(int i = 0; i < t_len; i++)
+		printf("%x", *(target + i));
+	printf("\n");
+
+	for(int i = 0; i < t_len; i++)
+		printf("%x", *(result + i));
+	printf("\n");
 	return !memcmp(target, result, t_len);
 }
 
@@ -354,7 +361,7 @@ void auth_request(uint8_t algorithm, uint8_t* target, uint16_t t_len, uint8_t* s
 	}
 }
 
-bool auth_check(uint8_t algorithm, uint8_t* target, uint16_t t_len, uint8_t* source, uint16_t s_len, uint8_t* key, uint8_t key_len) {
+bool auth_check(uint8_t algorithm, uint8_t* target, uint16_t t_len, uint8_t* source, uint16_t s_len, uint8_t* key, uint16_t key_len) {
 	switch(algorithm) {
 		case SADB_AALG_NONE:
 			return false;

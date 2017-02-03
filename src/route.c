@@ -6,6 +6,7 @@
 #include <net/arp.h>
 #include <net/ip.h>
 #include <net/interface.h>
+#include <net/checksum.h>
 
 #include "route.h"
 
@@ -206,6 +207,10 @@ bool route_process(Packet* packet) {
 
 			ether->dmac = endian48(arp_get_mac(route_entry->dev, next, route_entry->src));
 			ether->smac = endian48(route_entry->dev->mac);
+
+			ip->ttl--;
+			ip->checksum = 0;
+			ip->checksum = endian16(checksum(ip, ip->ihl * 4));
 			nic_output(route_entry->dev, packet);
 
 			return true;

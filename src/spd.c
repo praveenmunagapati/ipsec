@@ -7,6 +7,10 @@
 #include <byteswap.h>
 #include <netinet/in.h>
 
+#include <net/ip.h>
+#include <net/udp.h>
+#include <net/tcp.h>
+
 #include "spd.h"
 
 extern void* __gmalloc_pool;
@@ -124,6 +128,8 @@ SP* spd_get_sp(SPD* spd, uint8_t policy, IP* ip) {
 		if(sp->policy->sadb_x_policy_type != policy)
 			continue;
 
+		//Check Source
+		//1. Check Address
 		struct sockaddr_in* src_sockaddr = (struct sockaddr_in*)((uint8_t*)sp->address_src + sizeof(*sp->address_src));
 		uint32_t src_address0 = src_sockaddr->sin_addr.s_addr;
 		uint32_t src_mask = 0xffffffff;
@@ -131,14 +137,51 @@ SP* spd_get_sp(SPD* spd, uint8_t policy, IP* ip) {
 		if((src_address & src_mask) != (bswap_32(src_address0) & src_mask))
 			continue;
 
+		//2. Check Protocol
+		if(sp->address_src->sadb_address_proto != 255 && sp->address_src->sadb_address_proto != ip->protocol)
+			continue;
+
+		//3. Check Port: 0 = ANY
+		if(src_sockaddr->sin_port) {
+			uint16_t src_port;
+			if(ip->protocol == IP_PROTOCOL_UDP) {
+				UDP* udp = (UDP*)((uint8_t*)ip + ip->ihl * 4);
+				src_port = udp->source;
+			} else if(ip->protocol == IP_PROTOCOL_TCP) {
+				TCP* tcp= (TCP*)((uint8_t*)ip + ip->ihl * 4);
+				src_port = tcp->source;
+			} else
+				continue;
+
+			if(src_sockaddr->sin_port != src_port)
+				continue;
+		}
+
+		//Check Destination
+		//1. Check Address
 		struct sockaddr_in* dst_sockaddr = (struct sockaddr_in*)((uint8_t*)sp->address_dst + sizeof(*sp->address_dst));
 		uint32_t dst_address0 = dst_sockaddr->sin_addr.s_addr;
 		uint32_t dst_mask = 0xffffffff;
 		dst_mask <<= (32 - sp->address_dst->sadb_address_prefixlen);
 		if((dst_address & dst_mask) != (bswap_32(dst_address0) & dst_mask))
 			continue;
+		//2. Check Protocol: No need
+		//3. Check Port: 0 = ANY
+		if(dst_sockaddr->sin_port) {
+			uint16_t dst_port;
+			if(ip->protocol == IP_PROTOCOL_UDP) {
+				UDP* udp = (UDP*)((uint8_t*)ip + ip->ihl * 4);
+				dst_port = udp->destination;
+			} else if(ip->protocol == IP_PROTOCOL_TCP) {
+				TCP* tcp= (TCP*)((uint8_t*)ip + ip->ihl * 4);
+				dst_port = tcp->destination;
+			} else
+				continue;
 
-		//TODO check port
+			if(dst_sockaddr->sin_port != dst_port)
+				continue;
+		}
+
 #ifdef DEBUG
 		sp_dump(sp);
 #endif

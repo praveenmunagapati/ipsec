@@ -114,12 +114,12 @@ SA* sad_get_sa_inbound(SAD* sad, IP* ip) {
 	switch(ip->protocol) {
 		case IP_PROTOCOL_ESP:
 			;
-			ESP* esp = (ESP*)ip->body;
+			ESP* esp = (ESP*)((uint8_t*)ip + ip->ihl * 4);
 			spi = esp->spi;
 			break;
 		case IP_PROTOCOL_AH:
 			;
-			AH* ah = (AH*)ip->body;
+			AH* ah = (AH*)((uint8_t*)ip + ip->ihl * 4);
 			spi = ah->spi;
 			break;
 		default:

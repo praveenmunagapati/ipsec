@@ -4,9 +4,9 @@
 #undef DONT_MAKE_WRAPPER
 #include <string.h>
 #include <net/ip.h>
+#include <byteswap.h>
 
 #include "sa.h"
-#include <byteswap.h>
 
 extern void* __gmalloc_pool;
 SA* sa_alloc(int data_size) {
